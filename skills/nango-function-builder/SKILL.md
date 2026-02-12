@@ -23,15 +23,17 @@ Build deployable Nango functions (actions, syncs, on-event hooks) with repeatabl
 
 ## Workflow (recommended)
 1. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
-2. Run `nango dev` (continuous compile).
+2. Compile as needed with `nango compile` (one-off).
 3. Create/update the function file under `{integrationId}/actions/`, `{integrationId}/syncs/`, or `{integrationId}/on-events/`.
-4. Import the file from `index.ts`.
+4. Register the file in `index.ts` (side-effect import).
 5. Validate with `nango dryrun ... --validate`.
 6. Record mocks with `nango dryrun ... --save` and generate tests with `nango generate:tests`.
 7. Run `npm test`.
 8. Deploy with `nango deploy dev`.
 
-## FIRST: Confirm TypeScript Project (No nango.yaml)
+## Preconditions (Do Before Writing Code)
+
+### Confirm TypeScript Project (No nango.yaml)
 
 This skill only supports TypeScript projects using createAction()/createSync()/createOnEvent().
 
@@ -46,7 +48,7 @@ If you see YAML PROJECT DETECTED:
 
 Reference: https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml
 
-## FIRST: Verify Nango Project Root
+### Verify Nango Project Root
 
 Do not create files until you confirm the Nango root:
 
@@ -60,16 +62,6 @@ If you see NOT in Nango root:
 - Do not use absolute paths as a workaround
 
 All file paths must be relative to the Nango root. Creating files with extra prefixes while already in the Nango root will create nested directories that break the build.
-
-## Recommended: Start Nango Dev Mode
-
-Run this in a separate terminal while editing functions. It continuously compiles and surfaces errors:
-
-```bash
-nango dev
-```
-
-If you do not have `nango` on your PATH, use `npx nango dev`.
 
 ## Project Structure and Naming
 
@@ -95,6 +87,19 @@ If you do not have `nango` on your PATH, use `npx nango dev`.
 - Sync files: kebab-case (many teams use a `fetch-` prefix, but it's optional)
 - One function per file (action, sync, or on-event)
 - All actions, syncs, and on-event hooks must be imported in index.ts
+
+### Register scripts in `index.ts` (required)
+
+Use side-effect imports only (no default/named imports). Include the `.js` extension.
+
+```typescript
+// index.ts
+import './github/actions/get-top-contributor.js';
+import './github/syncs/fetch-issues.js';
+import './github/on-events/validate-connection.js';
+```
+
+Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
 
 ## Decide: Action vs Sync vs OnEvent
 
@@ -176,8 +181,8 @@ API Reference URL:
 
 ### Platform constraints (docs-backed)
 
-- TypeScript "Zero YAML": no `nango.yaml`; define functions with `createAction()`, `createSync()`, or `createOnEvent()`.
-- Register every action/sync/on-event in `index.ts` or it will not load.
+- Zero YAML TypeScript projects do not use `nango.yaml`. Define functions with `createAction()`, `createSync()`, or `createOnEvent()`.
+- Register every action/sync/on-event in `index.ts` via side-effect import (`import './<path>.js'`) or it will not load.
 - You cannot install/import arbitrary third-party packages in Functions. Relative imports inside the Nango project are supported. Pre-included dependencies include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Sync records must include a stable string `id`.
 - Action outputs cannot exceed 2MB.
@@ -223,13 +228,18 @@ const config: ProxyConfiguration = {
 
 ## Action Template (createAction)
 
+Notes:
+- `input` is required even for "no input" actions. Use `z.object({})`.
+- Do not import `ActionError` as a value from `nango` (it is a type-only export in recent versions). Throw `new nango.ActionError(payload)` using the `nango` exec parameter.
+- `ProxyConfiguration` typing is optional. Only import it if you explicitly annotate a variable.
+
 ```typescript
 import { z } from 'zod';
-import { createAction, ActionError } from 'nango';
-import type { ProxyConfiguration } from 'nango';
+import { createAction } from 'nango';
 
 const InputSchema = z.object({
     user_id: z.string().describe('User ID. Example: "123"')
+    // For no-input actions use: z.object({})
 });
 
 const OutputSchema = z.object({
@@ -252,19 +262,17 @@ const action = createAction({
     scopes: ['required.scope'],
 
     exec: async (nango, input): Promise<z.infer<typeof OutputSchema>> => {
-        const config: ProxyConfiguration = {
+        const response = await nango.get({
             // https://api-docs-url
             endpoint: '/api/v1/users',
             params: {
                 userId: input.user_id
             },
             retries: 3 // safe for idempotent GETs; be careful retrying non-idempotent writes
-        };
-
-        const response = await nango.get(config);
+        });
 
         if (!response.data) {
-            throw new ActionError({
+            throw new nango.ActionError({
                 type: 'not_found',
                 message: 'User not found',
                 user_id: input.user_id
@@ -299,7 +307,7 @@ const action = createAction({
         const teamId = metadata?.team_id;
 
         if (!teamId) {
-            throw new ActionError({
+            throw new nango.ActionError({
                 type: 'invalid_metadata',
                 message: 'team_id is required in metadata.'
             });
@@ -339,7 +347,7 @@ Use ActionError for expected failures (not found, validation, rate limit). Use s
 
 ```typescript
 if (response.status === 429) {
-    throw new ActionError({
+    throw new nango.ActionError({
         type: 'rate_limited',
         message: 'API rate limit exceeded',
         retry_after: response.headers['retry-after']
@@ -688,6 +696,9 @@ Actions: pass input:
 
 ```
 nango dryrun <action-name> <connection-id> --input '{"key":"value"}'
+
+# For actions with input: z.object({})
+nango dryrun <action-name> <connection-id> --input '{}'
 ```
 
 Stub metadata (when your function calls nango.getMetadata()):
@@ -706,8 +717,10 @@ nango dryrun <script-name> <connection-id> --save
 Notes:
 - Connection ID is the second positional argument (no `--connection-id` flag).
 - Use `--integration-id <integration-id>` when script names overlap across integrations.
-- Common flags: `--validate`, `-e/--env`, `--lastSyncDate "YYYY-MM-DD"`, `--variant <name>`.
+- Common flags: `--validate`, `-e/--environment dev|prod`, `--no-interactive`, `--auto-confirm`, `--lastSyncDate "YYYY-MM-DD"`, `--variant <name>`.
 - If you do not have `nango` on PATH, use `npx nango ...`.
+- In CI/non-interactive runs always pass `-e dev|prod` (otherwise the CLI prompts for environment selection).
+- CLI upgrade prompts can block non-interactive runs. Workaround: set `NANGO_CLI_UPGRADE_MODE=ignore`.
 
 Common mistakes:
 - Using `--connection-id` (does not exist)
@@ -717,9 +730,9 @@ Common mistakes:
 ## Testing and Validation Workflow
 
 Recommended loop while coding:
-1. Run `nango dev` in a separate terminal (continuous compile).
-2. Implement the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
-3. Import it from `index.ts`.
+1. Implement the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
+2. Register it via side-effect import in `index.ts`.
+3. Dryrun with `nango dryrun ... --validate` until it passes.
 
 Dryrun + validate:
 - Action: `nango dryrun <action-name> <connection-id> --input '{...}' --validate`
@@ -768,7 +781,7 @@ If web fetching returns incomplete docs (JS-rendered):
 
 | Mistake | Impact | Fix |
 |---------|--------|-----|
-| Missing index.ts import | Function not loaded | Add import immediately |
+| Missing/incorrect index.ts import | Function not loaded | Add side-effect import (`import './<path>.js'`) |
 | Using legacy dryrun flags (`--save-responses`, `-m`) | Dryrun/mocks fail | Use `--save` and `--metadata` |
 | Calling deleteRecordsFromPreviousExecutions after partial fetch | False deletions | Let failures fail; only call after full successful save |
 | trackDeletes: true | Deprecated | Use deleteRecordsFromPreviousExecutions (full) or batchDelete (incremental) |
@@ -782,8 +795,8 @@ Action:
 - [ ] Nango root verified
 - [ ] Schemas + types are clear (inline or relative imports)
 - [ ] createAction with endpoint/input/output/scopes
-- [ ] ProxyConfiguration includes API doc link and intentional retries
-- [ ] ActionError used for expected failures
+- [ ] Proxy config includes API doc link and intentional retries
+- [ ] `nango.ActionError` used for expected failures
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with --validate
 - [ ] Mocks recorded with --save (if adding tests)
