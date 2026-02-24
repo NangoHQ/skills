@@ -4,22 +4,19 @@ description: Build Nango Functions (TypeScript createAction/createSync/createOnE
 ---
 
 # Nango Function Builder
-Build deployable Nango functions (actions, syncs, on-event hooks) with repeatable patterns and validation steps.
+Build deployable Nango functions (actions, syncs hooks) with repeatable patterns and validation steps.
 
 ## When to use
 - User wants to build or modify a Nango function
 - User wants to build an action in Nango
 - User wants to build a sync in Nango
-- User wants to build an on-event hook (validate-connection, post-connection-creation, pre-connection-deletion)
 
 ## Useful Nango docs (quick links)
 - Functions runtime SDK reference: https://nango.dev/docs/reference/functions
 - Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
-- Implement an event handler (lifecycle hooks): https://nango.dev/docs/implementation-guides/use-cases/implement-event-handler
 - Testing integrations (dryrun, --save, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
-- Migrate from nango.yaml (Zero YAML): https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml
 
 ## Workflow (recommended)
 1. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
@@ -72,8 +69,6 @@ All file paths must be relative to the Nango root. Creating files with extra pre
 |-- hubspot/
 |   |-- actions/
 |   |   `-- create-contact.ts
-|   |-- on-events/
-|   |   `-- validate-connection.ts
 |   `-- syncs/
 |       `-- fetch-contacts.ts
 `-- slack/
@@ -101,7 +96,7 @@ import './github/on-events/validate-connection.js';
 
 Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
 
-## Decide: Action vs Sync vs OnEvent
+## Decide: Action vs Sync 
 
 Action:
 - One-time request, user-triggered
@@ -112,12 +107,6 @@ Sync:
 - Continuous data sync on a schedule
 - Fetches all records or incremental changes
 - Uses batchSave/batchDelete
-
-OnEvent:
-- Runs on connection lifecycle events (e.g., validate credentials)
-- Good for verification and setup/cleanup hooks
-
-If unclear, ask the user which behavior they want (one-time vs scheduled vs lifecycle hook).
 
 ## Required Inputs (Ask User if Missing)
 
@@ -139,10 +128,6 @@ Sync-specific:
 - Sync type (full or incremental)
 - Frequency (every hour, every 5 minutes, etc.)
 - Metadata JSON if required (team_id, workspace_id)
-
-OnEvent-specific:
-- Event type (validate-connection, post-connection-creation, pre-connection-deletion)
-- Expected behavior (what to validate/change)
 
 If any of these are missing, ask the user for them before writing code. Use their values in dryrun commands and tests.
 
@@ -419,32 +404,6 @@ exec: async (nango, input): Promise<z.infer<typeof ListOutput>> => {
         next_cursor: response.data.next_cursor || null
     };
 }
-```
-
-## OnEvent Template (createOnEvent)
-
-Use on-event functions for connection lifecycle hooks:
-- `validate-connection`: verify credentials/scopes on connection creation
-- `post-connection-creation`: run setup after a connection is created
-- `pre-connection-deletion`: cleanup before a connection is deleted
-
-File location convention: `{integrationId}/on-events/<name>.ts` and import it from `index.ts`.
-
-```typescript
-import { createOnEvent } from 'nango';
-import { z } from 'zod';
-
-export default createOnEvent({
-    description: 'Validate connection credentials',
-    version: '1.0.0',
-    event: 'validate-connection',
-    metadata: z.void(),
-
-    exec: async (nango) => {
-        // https://api-docs-url
-        await nango.get({ endpoint: '/me', retries: 3 });
-    }
-});
 ```
 
 ## Sync Template (createSync)
@@ -813,9 +772,3 @@ Sync:
 - [ ] Dryrun succeeds with --validate
 - [ ] Mocks recorded with --save (if adding tests)
 - [ ] Tests generated and npm test passes
-
-OnEvent:
-- [ ] Nango root verified
-- [ ] createOnEvent with event + exec
-- [ ] Registered in index.ts
-- [ ] Deployed and verified by triggering the lifecycle event
