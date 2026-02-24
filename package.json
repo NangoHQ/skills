@@ -1,0 +1,7 @@
+{
+    "name": "nango-function-skills",
+    "private": true,
+    "scripts": {
+        "build:skills": "node scripts/build-skills.mjs"
+    }
+}
