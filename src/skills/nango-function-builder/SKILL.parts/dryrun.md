@@ -1,42 +1,64 @@
 ## Dryrun Command Reference
 
-Basic syntax (action or sync):
+Default non-interactive flags (use these unless you have a reason not to):
+- `-e dev --no-interactive --auto-confirm`
+
+Basic syntax:
 
 ```
-nango dryrun <script-name> <connection-id>
+nango dryrun <script-name> <connection-id> [flags]
 ```
 
-Actions: pass input:
+### Actions (always pass --input)
+
+Validate:
 
 ```
-nango dryrun <action-name> <connection-id> --input '{"key":"value"}'
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 
-# For actions with input: z.object({})
-nango dryrun <action-name> <connection-id> --input '{}'
+# For no-input actions (input: z.object({}))
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
 ```
 
-Stub metadata (when your function calls nango.getMetadata()):
+After validation passes, record mocks (generates `<action-name>.test.json`):
 
 ```
-nango dryrun <script-name> <connection-id> --metadata '{"team_id":"123"}'
-nango dryrun <script-name> <connection-id> --metadata @fixtures/metadata.json
+nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 ```
 
-Save mocks for tests (implies validation; only saves if validation passes):
+### Syncs
+
+Validate:
 
 ```
-nango dryrun <script-name> <connection-id> --save
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
+```
+
+After validation passes, record mocks (generates `<sync-name>.test.json`):
+
+```
+nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
+```
+
+### Stub metadata (when your function calls nango.getMetadata())
+
+```
+# Action (still requires --input)
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}' --metadata '{"team_id":"123"}'
+
+# Sync
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata @fixtures/metadata.json
 ```
 
 Notes:
 - Connection ID is the second positional argument (no `--connection-id` flag).
 - Use `--integration-id <integration-id>` when script names overlap across integrations.
-- Common flags: `--validate`, `-e/--environment dev|prod`, `--no-interactive`, `--auto-confirm`, `--lastSyncDate "YYYY-MM-DD"`, `--variant <name>`.
+- Common flags: `--lastSyncDate "YYYY-MM-DD"`, `--variant <name>`.
 - If you do not have `nango` on PATH, use `npx nango ...`.
-- In CI/non-interactive runs always pass `-e dev|prod` (otherwise the CLI prompts for environment selection).
 - CLI upgrade prompts can block non-interactive runs. Workaround: set `NANGO_CLI_UPGRADE_MODE=ignore`.
 
 Common mistakes:
-- Using `--connection-id` (does not exist)
-- Using legacy flags like `--save-responses` or `-m` (use `--save` and `--metadata`)
-- Putting integration ID as the second argument (it will be interpreted as connection ID)
+- Using `--connection-id` (does not exist).
+- Using legacy flags like `--save-responses` or `-m` (use `--save` and `--metadata`).
+- Putting integration ID as the second argument (it will be interpreted as connection ID).
+- Omitting `--input` for actions (always pass `--input`, even `{}`).

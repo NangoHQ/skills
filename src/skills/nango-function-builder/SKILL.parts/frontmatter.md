@@ -1,4 +1,4 @@
 ---
 name: nango-function-builder
-description: Build Nango Functions (TypeScript createAction/createSync/createOnEvent) using the Nango Runner SDK. Includes project/root checks, endpoint conventions, retries/pagination, deletion detection, metadata, and a docs-aligned dryrun/test workflow.
+description: Build Nango Functions (TypeScript createAction/createSync) using the Nango Runner SDK. Includes project/root checks, endpoint conventions, retries/pagination, deletion detection, metadata, and a docs-aligned dryrun/test workflow.
 ---
