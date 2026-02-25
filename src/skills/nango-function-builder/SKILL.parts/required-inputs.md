@@ -3,7 +3,7 @@
 Always:
 - Integration ID (provider name)
 - Connection ID (for dryrun)
-- Function name (kebab-case)
+- Script name (kebab-case)
 - API reference URL or sample response
 
 Action-specific:
@@ -11,7 +11,7 @@ Action-specific:
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON for dryrun/mocks
+- Test input JSON for dryrun `--input` and mocks (required; use `{}` for no-input actions)
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -35,7 +35,7 @@ Action Outputs:
 Metadata JSON (if required):
 Action Name (kebab-case):
 API Reference URL:
-Test Input JSON:
+Test Input JSON (required):
 ```
 
 Sync prompt:
@@ -44,6 +44,7 @@ Sync prompt:
 Please provide:
 Integration ID (required):
 Connection ID (required):
+Sync Name (kebab-case):
 Model Name (singular, PascalCase):
 Endpoint Path (for Nango endpoint):
 Frequency (every hour, every 5 minutes, etc.):

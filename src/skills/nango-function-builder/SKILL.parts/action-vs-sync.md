@@ -1,4 +1,4 @@
-## Decide: Action vs Sync 
+## Decide: Action vs Sync
 
 Action:
 - One-time request, user-triggered

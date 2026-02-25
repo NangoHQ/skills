@@ -8,25 +8,21 @@
 
 <!-- include: ./SKILL.parts/workflow.md -->
 
-<!-- include: ./SKILL.parts/preconditions.md -->
-
-<!-- include: ./SKILL.parts/project-structure.md -->
-
 <!-- include: ./SKILL.parts/action-vs-sync.md -->
 
 <!-- include: ./SKILL.parts/required-inputs.md -->
 
+<!-- include: ./SKILL.parts/preconditions.md -->
+
+<!-- include: ./SKILL.parts/project-structure.md -->
+
 <!-- include: ./SKILL.parts/non-negotiable-rules.md -->
+
+<!-- include: ./SKILL.parts/dryrun-and-tests.md -->
 
 <!-- include: ./SKILL.parts/action-template.md -->
 
 <!-- include: ./SKILL.parts/sync-template.md -->
-
-<!-- include: ./SKILL.parts/dryrun.md -->
-
-<!-- include: ./SKILL.parts/testing-and-validation.md -->
-
-<!-- include: ./SKILL.parts/mocks.md -->
 
 <!-- include: ./SKILL.parts/deploy.md -->
 

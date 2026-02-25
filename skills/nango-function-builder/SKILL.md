@@ -19,15 +19,84 @@ Build deployable Nango functions (actions and syncs) with repeatable patterns an
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
 
 ## Workflow (recommended)
-1. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
-2. Compile as needed with `nango compile` (one-off).
-3. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
-4. Register the file in `index.ts` (side-effect import).
-5. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` (actions: always include `--input '{...}'`).
-6. Ensure `<script-name>.test.json` exists by running `nango dryrun ... --save -e dev --no-interactive --auto-confirm` (actions: always include `--input '{...}'`; never hand-author `.test.json`).
-7. Generate tests with `nango generate:tests` (required).
-8. Run `npm test`.
-9. Deploy with `nango deploy dev`.
+1. Decide whether this is an action or a sync.
+2. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON).
+3. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
+4. Compile as needed with `nango compile` (one-off).
+5. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
+6. Register the file in `index.ts` (side-effect import).
+7. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` (actions: never omit `--input '{...}'`; use `--input '{}'` for no-input actions).
+8. If validation can't pass, stop and return early stating the missing external state/inputs required (never hand-author `*.test.json`).
+9. Ensure `<script-name>.test.json` exists by running `nango dryrun ... --save -e dev --no-interactive --auto-confirm` (actions: always include `--input '{...}'`).
+10. Generate tests with `nango generate:tests` (required) and run `npm test`.
+11. Deploy with `nango deploy dev`.
+
+## Decide: Action vs Sync
+
+Action:
+- One-time request, user-triggered
+- CRUD operations and small lookups
+- Thin API wrapper
+
+Sync:
+- Continuous data sync on a schedule
+- Fetches all records or incremental changes
+- Uses batchSave/batchDelete
+
+## Required Inputs (Ask User if Missing)
+
+Always:
+- Integration ID (provider name)
+- Connection ID (for dryrun)
+- Script name (kebab-case)
+- API reference URL or sample response
+
+Action-specific:
+- Use case summary
+- Input parameters
+- Output fields
+- Metadata JSON if required
+- Test input JSON for dryrun `--input` and mocks (required; use `{}` for no-input actions)
+
+Sync-specific:
+- Model name (singular, PascalCase)
+- Sync type (full or incremental)
+- Frequency (every hour, every 5 minutes, etc.)
+- Metadata JSON if required (team_id, workspace_id)
+
+If any of these are missing, ask the user for them before writing code. Use their values in dryrun commands and tests.
+
+### Prompt Templates (Use When Details Are Missing)
+
+Action prompt:
+
+```
+Please provide:
+Integration ID (required):
+Connection ID (required):
+Use Case Summary:
+Action Inputs:
+Action Outputs:
+Metadata JSON (if required):
+Action Name (kebab-case):
+API Reference URL:
+Test Input JSON (required):
+```
+
+Sync prompt:
+
+```
+Please provide:
+Integration ID (required):
+Connection ID (required):
+Sync Name (kebab-case):
+Model Name (singular, PascalCase):
+Endpoint Path (for Nango endpoint):
+Frequency (every hour, every 5 minutes, etc.):
+Sync Type (full or incremental):
+Metadata JSON (if required):
+API Reference URL:
+```
 
 ## Preconditions (Do Before Writing Code)
 
@@ -95,72 +164,6 @@ import './github/syncs/fetch-issues.js';
 
 Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
 
-## Decide: Action vs Sync 
-
-Action:
-- One-time request, user-triggered
-- CRUD operations and small lookups
-- Thin API wrapper
-
-Sync:
-- Continuous data sync on a schedule
-- Fetches all records or incremental changes
-- Uses batchSave/batchDelete
-
-## Required Inputs (Ask User if Missing)
-
-Always:
-- Integration ID (provider name)
-- Connection ID (for dryrun)
-- Function name (kebab-case)
-- API reference URL or sample response
-
-Action-specific:
-- Use case summary
-- Input parameters
-- Output fields
-- Metadata JSON if required
-- Test input JSON for dryrun/mocks
-
-Sync-specific:
-- Model name (singular, PascalCase)
-- Sync type (full or incremental)
-- Frequency (every hour, every 5 minutes, etc.)
-- Metadata JSON if required (team_id, workspace_id)
-
-If any of these are missing, ask the user for them before writing code. Use their values in dryrun commands and tests.
-
-### Prompt Templates (Use When Details Are Missing)
-
-Action prompt:
-
-```
-Please provide:
-Integration ID (required):
-Connection ID (required):
-Use Case Summary:
-Action Inputs:
-Action Outputs:
-Metadata JSON (if required):
-Action Name (kebab-case):
-API Reference URL:
-Test Input JSON:
-```
-
-Sync prompt:
-
-```
-Please provide:
-Integration ID (required):
-Connection ID (required):
-Model Name (singular, PascalCase):
-Endpoint Path (for Nango endpoint):
-Frequency (every hour, every 5 minutes, etc.):
-Sync Type (full or incremental):
-Metadata JSON (if required):
-API Reference URL:
-```
-
 ## Non-Negotiable Rules (Shared)
 
 ### Platform constraints (docs-backed)
@@ -215,6 +218,110 @@ const config: ProxyConfiguration = {
     retries: 3
 };
 ```
+
+## Dryrun, Mocks, and Tests (required)
+
+Required loop (do not skip steps):
+1. `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes (actions: never omit `--input`).
+2. If validation can't pass, stop and return early stating the missing external state/inputs required (never hand-author `*.test.json`).
+3. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
+4. Run `nango generate:tests` to generate/update `<script-name>.test.ts`.
+5. Run `npm test`.
+
+Default non-interactive flags (use these unless you have a reason not to):
+- `-e dev --no-interactive --auto-confirm`
+
+### nango dryrun
+
+Basic syntax:
+
+```
+nango dryrun <script-name> <connection-id> [flags]
+```
+
+Actions (always pass `--input`):
+
+Validate:
+
+```
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# For no-input actions (input: z.object({}))
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
+```
+
+After validation passes, record mocks (generates `<action-name>.test.json`):
+
+```
+nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+```
+
+Syncs:
+
+Validate:
+
+```
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
+```
+
+After validation passes, record mocks (generates `<sync-name>.test.json`):
+
+```
+nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
+```
+
+Incremental sync testing:
+
+```
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --lastSyncDate "YYYY-MM-DD"
+```
+
+Stub metadata (when your function calls nango.getMetadata()):
+
+```
+# Action (still requires --input)
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}' --metadata '{"team_id":"123"}'
+
+# Sync
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata @fixtures/metadata.json
+```
+
+Notes:
+- Connection ID is the second positional argument (no `--connection-id` flag).
+- Use `--integration-id <integration-id>` when script names overlap across integrations.
+- Common flags: `--variant <name>`.
+- If you do not have `nango` on PATH, use `npx nango ...`.
+- CLI upgrade prompts can block non-interactive runs. Workaround: set `NANGO_CLI_UPGRADE_MODE=ignore`.
+
+### nango generate:tests
+
+Generate/update tests (required):
+
+```
+nango generate:tests
+```
+
+Optionally narrow generation:
+
+```
+nango generate:tests -i <integrationId>
+nango generate:tests -i <integrationId> -a <action-name>
+nango generate:tests -i <integrationId> -s <sync-name>
+```
+
+### Test artifacts
+
+```
+{integrationId}/tests/
+|-- <script-name>.test.ts
+`-- <script-name>.test.json
+```
+
+- Ensure `<script-name>.test.json` exists (generated by `nango dryrun ... --save` after a successful `--validate`). Never hand-author `*.test.json`.
+- `<script-name>.test.json` contains recorded API mocks + expected input/output.
+- `<script-name>.test.ts` is generated/updated by `nango generate:tests`.
+
+Reference: https://nango.dev/docs/implementation-guides/platform/functions/testing
 
 ## Action Template (createAction)
 
@@ -648,101 +755,6 @@ while (true) {
 }
 ```
 
-## Dryrun Command Reference
-
-Default non-interactive flags (use these unless you have a reason not to):
-- `-e dev --no-interactive --auto-confirm`
-
-Basic syntax:
-
-```
-nango dryrun <script-name> <connection-id> [flags]
-```
-
-### Actions (always pass --input)
-
-Validate:
-
-```
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
-
-# For no-input actions (input: z.object({}))
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
-```
-
-After validation passes, record mocks (generates `<action-name>.test.json`):
-
-```
-nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
-```
-
-### Syncs
-
-Validate:
-
-```
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
-```
-
-After validation passes, record mocks (generates `<sync-name>.test.json`):
-
-```
-nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
-```
-
-### Stub metadata (when your function calls nango.getMetadata())
-
-```
-# Action (still requires --input)
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}' --metadata '{"team_id":"123"}'
-
-# Sync
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata @fixtures/metadata.json
-```
-
-Notes:
-- Connection ID is the second positional argument (no `--connection-id` flag).
-- Use `--integration-id <integration-id>` when script names overlap across integrations.
-- Common flags: `--lastSyncDate "YYYY-MM-DD"`, `--variant <name>`.
-- If you do not have `nango` on PATH, use `npx nango ...`.
-- CLI upgrade prompts can block non-interactive runs. Workaround: set `NANGO_CLI_UPGRADE_MODE=ignore`.
-
-Common mistakes:
-- Using `--connection-id` (does not exist).
-- Using legacy flags like `--save-responses` or `-m` (use `--save` and `--metadata`).
-- Putting integration ID as the second argument (it will be interpreted as connection ID).
-- Omitting `--input` for actions (always pass `--input`, even `{}`).
-
-## Testing and Validation Workflow
-
-Recommended loop while coding:
-1. Implement the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
-2. Register it via side-effect import in `index.ts`.
-3. Dryrun with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes (actions: always include `--input '{...}'`).
-4. If dryrun can't pass, stop and return early with the missing external state/inputs required to make it pass (do not hand-author `.test.json`).
-5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json` (actions: always include `--input '{...}'`).
-6. Run `nango generate:tests` to generate/update `<script-name>.test.ts` (required).
-7. Run tests via `npm test` (Vitest) or `npx vitest run`.
-
-Dryrun + validate:
-- Action: `nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{...}'` (never omit `--input`; use `'{}'` for no-input actions)
-- Sync: `nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm`
-- Incremental sync testing: add `--lastSyncDate "YYYY-MM-DD"`
-
-Reference: https://nango.dev/docs/implementation-guides/platform/functions/testing
-
-## Mocks and Test Files (Current Format)
-
-```
-{integrationId}/tests/
-|-- <script-name>.test.ts
-`-- <script-name>.test.json
-```
-
-Ensure `<script-name>.test.json` exists (generated by `nango dryrun ... --save` after a successful `--validate`). Never hand-author `*.test.json`.
-
-Run `nango generate:tests` (required) to generate/update `<script-name>.test.ts`.
-
 ## Deploy (Optional)
 
 Deploy functions to an environment in your Nango account:
@@ -762,7 +774,7 @@ Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implem
 If web fetching returns incomplete docs (JS-rendered):
 - Ask the user for a sample response
 - Use existing actions/syncs in the repo as a pattern
-- Run dryrun with `--validate` until it passes, then run dryrun with `--save` to capture mocks and build from the recorded response
+ - Run dryrun with `--validate` until it passes, then run dryrun with `--save` to capture mocks, then run `nango generate:tests` to generate tests from the recorded response
 
 ## Common Mistakes
 
