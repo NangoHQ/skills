@@ -1,6 +1,6 @@
 ## Workflow (recommended)
 1. Decide whether this is an action or a sync.
-2. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON).
+2. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON). If you need connection details/credentials or want to do setup/discovery calls, use the Nango HTTP API (Connections/Proxy; auth with Nango secret key); do not invent Nango CLI token/connection commands.
 3. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
 4. Compile as needed with `nango compile` (one-off).
 5. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.

@@ -17,10 +17,14 @@ Build deployable Nango functions (actions and syncs) with repeatable patterns an
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
 - Testing integrations (dryrun, --save, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
+- Nango HTTP API reference: https://nango.dev/docs/reference/api
+- Nango API auth (secret key): https://nango.dev/docs/reference/api/authentication
+- Nango API: Get connection & credentials: https://nango.dev/docs/reference/api/connections/get
+- Proxy requests to external APIs: https://nango.dev/docs/guides/primitives/proxy
 
 ## Workflow (recommended)
 1. Decide whether this is an action or a sync.
-2. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON).
+2. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON). If you need connection details/credentials or want to do setup/discovery calls, use the Nango HTTP API (Connections/Proxy; auth with Nango secret key); do not invent Nango CLI token/connection commands.
 3. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
 4. Compile as needed with `nango compile` (one-off).
 5. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
@@ -190,6 +194,38 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 
 - If you need to test error handling (404/401/429/timeouts), add/extend Vitest tests to mock `nangoMock.get/post/patch/delete` with `vi.spyOn(...).mockRejectedValueOnce(...)` or `mockResolvedValueOnce(...)`.
 - Do not hand-edit `*.test.json` to hard-code error payloads, HTML bodies, or modified URLs.
+
+### Nango HTTP API (Connections + Proxy) (hard rules + cheat sheet)
+
+- The Nango CLI is for local Functions development (`compile`, `dryrun`, `generate:tests`). For connection management, discovery, and calling provider APIs, use the Nango HTTP API (Proxy included).
+- Do not guess/invent Nango CLI commands for tokens/connections (e.g., `nango token`, `nango connection get`). If you need something, look it up in the Nango API reference: https://nango.dev/docs/reference/api
+- Authenticate to the Nango HTTP API with your Nango secret key (docs): `Authorization: Bearer ${NANGO_SECRET_KEY_DEV}`.
+  - This is the Nango secret key (not a provider OAuth token). It typically lives in `.env` as `NANGO_SECRET_KEY_DEV` / `NANGO_SECRET_KEY_PROD`.
+  - Never print or paste secret keys into chat/logs; reference env vars in commands.
+
+Connections cheat sheet:
+
+```bash
+# List connections
+curl -sS "https://api.nango.dev/connections" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}"
+
+# Get a connection + credentials (auto-refreshes tokens)
+curl -sS "https://api.nango.dev/connections/<connection-id>?provider_config_key=<integration-id>" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}"
+```
+
+Proxy cheat sheet (part of the Nango HTTP API):
+
+```bash
+# Call a provider API through Nango Proxy (Nango injects provider auth)
+curl -sS "https://api.nango.dev/proxy/<provider-path>" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}" \
+  -H "Provider-Config-Key: <integration-id>" \
+  -H "Connection-Id: <connection-id>"
+```
+
+Note: Nango also has many other HTTP API endpoints (sync control, action triggering, integrations, providers, scripts config, connect sessions, etc.). Use the API reference when you need more than Connections/Proxy.
 
 ### Conventions (recommended)
 
@@ -820,6 +856,8 @@ If web fetching returns incomplete docs (JS-rendered):
 | Skipping `nango generate:tests` | Missing/out-of-date `.test.ts` | Run `nango generate:tests` after `--save` |
 | Action dryrun without `--input` | Validation fails / wrong mocks | Always pass `--input '{...}'` (use `'{}'` for no-input actions) |
 | Dryrun without `-e dev --no-interactive --auto-confirm` | CLI prompts/hangs in automation | Use `-e dev --no-interactive --auto-confirm` (and `NANGO_CLI_UPGRADE_MODE=ignore` if needed) |
+| Inventing Nango CLI commands for tokens/connections (e.g., `nango token`, `nango connection get`) | Wasted time; incorrect approach | Use the Nango HTTP API (Connections/Proxy) authenticated with `Authorization: Bearer ${NANGO_SECRET_KEY_DEV}`; look up the correct endpoint in https://nango.dev/docs/reference/api |
+| Calling Nango Proxy with a provider OAuth token in `Authorization` | Proxy auth fails; confusion between Nango vs provider auth | Use Nango secret key in `Authorization` and pass `Provider-Config-Key` + `Connection-Id` headers (Nango injects provider auth) |
 | Using legacy dryrun flags (`--save-responses`, `-m`) | Dryrun/mocks fail | Use `--save` and `--metadata` |
 | Calling deleteRecordsFromPreviousExecutions after partial fetch | False deletions | Let failures fail; only call after full successful save |
 | trackDeletes: true | Deprecated | Use deleteRecordsFromPreviousExecutions (full) or batchDelete (incremental) |

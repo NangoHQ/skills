@@ -25,6 +25,38 @@
 - If you need to test error handling (404/401/429/timeouts), add/extend Vitest tests to mock `nangoMock.get/post/patch/delete` with `vi.spyOn(...).mockRejectedValueOnce(...)` or `mockResolvedValueOnce(...)`.
 - Do not hand-edit `*.test.json` to hard-code error payloads, HTML bodies, or modified URLs.
 
+### Nango HTTP API (Connections + Proxy) (hard rules + cheat sheet)
+
+- The Nango CLI is for local Functions development (`compile`, `dryrun`, `generate:tests`). For connection management, discovery, and calling provider APIs, use the Nango HTTP API (Proxy included).
+- Do not guess/invent Nango CLI commands for tokens/connections (e.g., `nango token`, `nango connection get`). If you need something, look it up in the Nango API reference: https://nango.dev/docs/reference/api
+- Authenticate to the Nango HTTP API with your Nango secret key (docs): `Authorization: Bearer ${NANGO_SECRET_KEY_DEV}`.
+  - This is the Nango secret key (not a provider OAuth token). It typically lives in `.env` as `NANGO_SECRET_KEY_DEV` / `NANGO_SECRET_KEY_PROD`.
+  - Never print or paste secret keys into chat/logs; reference env vars in commands.
+
+Connections cheat sheet:
+
+```bash
+# List connections
+curl -sS "https://api.nango.dev/connections" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}"
+
+# Get a connection + credentials (auto-refreshes tokens)
+curl -sS "https://api.nango.dev/connections/<connection-id>?provider_config_key=<integration-id>" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}"
+```
+
+Proxy cheat sheet (part of the Nango HTTP API):
+
+```bash
+# Call a provider API through Nango Proxy (Nango injects provider auth)
+curl -sS "https://api.nango.dev/proxy/<provider-path>" \
+  -H "Authorization: Bearer ${NANGO_SECRET_KEY_DEV}" \
+  -H "Provider-Config-Key: <integration-id>" \
+  -H "Connection-Id: <connection-id>"
+```
+
+Note: Nango also has many other HTTP API endpoints (sync control, action triggering, integrations, providers, scripts config, connect sessions, etc.). Use the API reference when you need more than Connections/Proxy.
+
 ### Conventions (recommended)
 
 - Prefer explicit parameter names (`user_id`, `channel_id`, `team_id`).
