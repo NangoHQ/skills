@@ -16,7 +16,7 @@ Sync:
 - [ ] Models map defined; record ids are strings
 - [ ] createSync with endpoints/frequency/syncType
 - [ ] paginate + batchSave in exec
-- [ ] deleteRecordsFromPreviousExecutions at end for full sync
+- [ ] trackDeletesStart at start + trackDeletesEnd at end for automated deletion detection (full refresh)
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`

@@ -4,3 +4,4 @@ This repository contains reusable skills for building Nango functions. It is int
 
 Included skills:
 - `nango-function-builder` (`skills/nango-function-builder/SKILL.md`)
+- `migrating-nango-deletion-detection` (`skills/migrating-nango-deletion-detection/SKILL.md`)

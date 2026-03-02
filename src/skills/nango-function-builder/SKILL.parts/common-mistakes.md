@@ -10,8 +10,8 @@
 | Inventing Nango CLI commands for tokens/connections (e.g., `nango token`, `nango connection get`) | Wasted time; incorrect approach | Use the Nango HTTP API (Connections/Proxy) authenticated with `Authorization: Bearer ${NANGO_SECRET_KEY_DEV}`; look up the correct endpoint in https://nango.dev/docs/reference/api |
 | Calling Nango Proxy with a provider OAuth token in `Authorization` | Proxy auth fails; confusion between Nango vs provider auth | Use Nango secret key in `Authorization` and pass `Provider-Config-Key` + `Connection-Id` headers (Nango injects provider auth) |
 | Using legacy dryrun flags (`--save-responses`, `-m`) | Dryrun/mocks fail | Use `--save` and `--metadata` |
-| Calling deleteRecordsFromPreviousExecutions after partial fetch | False deletions | Let failures fail; only call after full successful save |
-| trackDeletes: true | Deprecated | Use deleteRecordsFromPreviousExecutions (full) or batchDelete (incremental) |
+| Calling trackDeletesEnd after partial fetch | False deletions | Let failures fail; only call after full successful save |
+| trackDeletes: true | Deprecated | Use trackDeletesStart/trackDeletesEnd (full) or batchDelete (incremental) |
 | Retrying non-idempotent writes blindly | Duplicate side effects | Avoid retries or use provider idempotency keys |
 | Using any in mapping | Loses type safety | Use inline types |
 | Using --connection-id | Dryrun fails | Use positional connection id |

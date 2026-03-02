@@ -32,24 +32,30 @@ export default sync;
 
 ### Sync Deletion Detection
 
-- Do not use trackDeletes. It is deprecated.
-- Full syncs: call deleteRecordsFromPreviousExecutions at the end of exec after all batchSave calls.
-- Incremental syncs: if the API supports it, detect deletions and call batchDelete.
+- Do not use `trackDeletes: true`. It is deprecated.
+- Full refresh syncs (including checkpoint-based full refresh): call `trackDeletesStart` before fetching, and `trackDeletesEnd` after all batching record calls (`batchSave`/`batchUpdate`/`batchDelete`).
+- Incremental syncs: if the API supports it, detect deletions and call `batchDelete`.
 
 Important: deletion detection is a soft delete. Records remain in the cache but are marked as deleted in metadata.
 
-Safety: only call deleteRecordsFromPreviousExecutions when the run successfully fetched the full dataset. Do not catch and swallow errors and still call it (false deletions).
+Safety: only call `trackDeletesEnd` when the run successfully fetched + saved the full dataset between `trackDeletesStart` and `trackDeletesEnd`. Do not catch and swallow errors and still call it (false deletions).
 
 Reference: https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
 
 ```typescript
-await nango.deleteRecordsFromPreviousExecutions('Record');
+await nango.trackDeletesStart('Record');
+
+// ... fetch + batchSave all records ...
+
+await nango.trackDeletesEnd('Record');
 ```
 
 ### Full Sync (Recommended)
 
 ```typescript
 exec: async (nango) => {
+    await nango.trackDeletesStart('Record');
+
     const proxyConfig = {
         // https://api-docs-url
         endpoint: 'api/v1/records',
@@ -68,7 +74,7 @@ exec: async (nango) => {
         }
     }
 
-    await nango.deleteRecordsFromPreviousExecutions('Record');
+    await nango.trackDeletesEnd('Record');
 }
 ```
 
@@ -185,7 +191,8 @@ await nango.setMergingStrategy({ strategy: 'ignore_if_modified_after' }, 'Contac
 | nango.paginate(config) | Iterate through paginated responses |
 | nango.batchSave(records, model) | Save records to cache |
 | nango.batchDelete(records, model) | Mark as deleted (incremental) |
-| nango.deleteRecordsFromPreviousExecutions(model) | Auto-detect deletions (full) |
+| nango.trackDeletesStart(model) | Start automated deletion detection (full refresh) |
+| nango.trackDeletesEnd(model) | Mark missing records as deleted (full refresh) |
 | nango.lastSyncDate | Last sync timestamp (incremental) |
 
 ### Pagination Helper (Advanced Config)

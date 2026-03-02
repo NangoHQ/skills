@@ -57,7 +57,8 @@ for (const entry of entries) {
         continue;
     }
 
-    builtAny ||= await buildSkill(entry.name);
+    const built = await buildSkill(entry.name);
+    builtAny = builtAny || built;
 }
 
 if (!builtAny) {

@@ -7,7 +7,7 @@
 - You cannot install/import arbitrary third-party packages in Functions. Relative imports inside the Nango project are supported. Pre-included dependencies include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Sync records must include a stable string `id`.
 - Action outputs cannot exceed 2MB.
-- `deleteRecordsFromPreviousExecutions()` is for full refresh syncs only. Call it only after you successfully fetched + saved the full dataset; do not swallow errors and still call it.
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For automated deletion detection in full refresh syncs, use `trackDeletesStart()`/`trackDeletesEnd()` and only call `trackDeletesEnd()` after the full dataset has been fetched and saved (do not swallow errors and still call it).
 - HTTP request retries default to `0`. Set `retries` intentionally (and be careful retrying non-idempotent writes).
 
 ### Dryrun + tests (hard rules)
