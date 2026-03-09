@@ -14,9 +14,10 @@ Action:
 Sync:
 - [ ] Nango root verified
 - [ ] Models map defined; record ids are strings
-- [ ] createSync with endpoints/frequency/syncType
+- [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is clearly required
 - [ ] paginate + batchSave in exec
-- [ ] trackDeletesStart at start + trackDeletesEnd at end for automated deletion detection (full refresh)
+- [ ] `nango.getCheckpoint()` / `nango.saveCheckpoint()` used after each processed batch/page for incremental syncs
+- [ ] Deletion strategy matches sync type: `batchDelete()` for incremental when supported, otherwise `trackDeletesStart()` / `trackDeletesEnd()` for full refresh fallback
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`

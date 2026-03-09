@@ -6,22 +6,28 @@ import { z } from 'zod';
 
 const RecordSchema = z.object({
     id: z.string(),
-    name: z.union([z.string(), z.null()])
+    name: z.union([z.string(), z.null()]),
+    updated_at: z.string()
+});
+
+const CheckpointSchema = z.object({
+    updated_after: z.string().optional()
 });
 
 const sync = createSync({
     description: 'Brief single sentence',
     version: '1.0.0',
     endpoints: [{ method: 'GET', path: '/provider/records', group: 'Records' }],
-    frequency: 'every hour',
+    frequency: 'every 5 minutes',
     autoStart: true,
-    syncType: 'full',
+    checkpoint: CheckpointSchema,
 
     models: {
         Record: RecordSchema
     },
 
     exec: async (nango) => {
+        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
         // Sync logic here
     }
 });
@@ -30,11 +36,19 @@ export type NangoSyncLocal = Parameters<(typeof sync)['exec']>[0];
 export default sync;
 ```
 
+### Choose the Sync Strategy First
+
+- Start with checkpoint-based incremental syncs.
+- Use checkpoints when the API supports `updated_at` / `modified_since` filters, changed-records endpoints, cursors/page tokens, or webhooks that let you resume safely.
+- Save progress with `nango.saveCheckpoint()` after each processed page/batch.
+- Fall back to full refresh only when the provider cannot return changed records or deletions, or the dataset is trivially small.
+
 ### Sync Deletion Detection
 
 - Do not use `trackDeletes: true`. It is deprecated.
-- Full refresh syncs (including checkpoint-based full refresh): call `trackDeletesStart` before fetching, and `trackDeletesEnd` after all batching record calls (`batchSave`/`batchUpdate`/`batchDelete`).
-- Incremental syncs: if the API supports it, detect deletions and call `batchDelete`.
+- Incremental syncs: if the API exposes deleted records, tombstones, or webhook delete events, call `batchDelete()`.
+- Full refresh fallback (including checkpoint-based full refresh): call `trackDeletesStart` before fetching, and `trackDeletesEnd` after all batching record calls (`batchSave`/`batchUpdate`/`batchDelete`).
+- Checkpointed full refreshes are still full refreshes. If you checkpoint pagination state to resume a long backfill, only call `trackDeletesEnd` in the execution that finishes saving the complete dataset.
 
 Important: deletion detection is a soft delete. Records remain in the cache but are marked as deleted in metadata.
 
@@ -42,85 +56,108 @@ Safety: only call `trackDeletesEnd` when the run successfully fetched + saved th
 
 Reference: https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
 
-```typescript
-await nango.trackDeletesStart('Record');
-
-// ... fetch + batchSave all records ...
-
-await nango.trackDeletesEnd('Record');
-```
-
-### Full Sync (Recommended)
+### Incremental Sync With Checkpoints (Recommended)
 
 ```typescript
-exec: async (nango) => {
-    await nango.trackDeletesStart('Record');
+const CheckpointSchema = z.object({
+    updated_after: z.string().optional()
+});
 
-    const proxyConfig = {
-        // https://api-docs-url
-        endpoint: 'api/v1/records',
-        paginate: { limit: 100 },
-        retries: 3
-    };
-
-    for await (const batch of nango.paginate(proxyConfig)) {
-        const records = batch.map((r: { id: string; name: string }) => ({
-            id: r.id,
-            name: r.name ?? null
-        }));
-
-        if (records.length > 0) {
-            await nango.batchSave(records, 'Record');
-        }
-    }
-
-    await nango.trackDeletesEnd('Record');
-}
-```
-
-### Incremental Sync
-
-```typescript
 const sync = createSync({
-    syncType: 'incremental',
+    checkpoint: CheckpointSchema,
     frequency: 'every 5 minutes',
 
+    models: {
+        Record: RecordSchema
+    },
+
     exec: async (nango) => {
-        const lastSync = nango.lastSyncDate;
+        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
 
         const proxyConfig = {
             // https://api-docs-url
             endpoint: '/api/records',
             params: {
-                sort: 'updated',
-                ...(lastSync && { since: lastSync.toISOString() })
+                sort: 'updated_at:asc',
+                ...(checkpoint?.updated_after && { since: checkpoint.updated_after })
             },
             paginate: { limit: 100 },
             retries: 3
         };
 
         for await (const batch of nango.paginate(proxyConfig)) {
-            const records = batch.map((record: { id: string; name?: string }) => ({
+            const records = batch.map((record: { id: string; name?: string; updated_at: string }) => ({
                 id: record.id,
-                name: record.name ?? null
+                name: record.name ?? null,
+                updated_at: record.updated_at
             }));
+
+            if (records.length === 0) {
+                continue;
+            }
+
             await nango.batchSave(records, 'Record');
+            await nango.saveCheckpoint({
+                updated_after: records[records.length - 1].updated_at
+            });
         }
 
-        if (lastSync) {
+        if (checkpoint?.updated_after) {
             const deleted = await nango.get({
                 // https://api-docs-url
                 endpoint: '/api/records/deleted',
-                params: { since: lastSync.toISOString() },
+                params: { since: checkpoint.updated_after },
                 retries: 3
             });
+
             if (deleted.data.length > 0) {
                 await nango.batchDelete(
-                    deleted.data.map((d: { id: string }) => ({ id: d.id })),
+                    deleted.data.map((record: { id: string }) => ({ id: record.id })),
                     'Record'
                 );
             }
         }
+    }
+});
+```
+
+If the provider can return identical timestamps or requires pagination state to resume safely, use a composite checkpoint such as `z.object({ updated_after: z.string(), cursor: z.string().optional() })` and persist both fields with `nango.saveCheckpoint()`.
+
+### Full Refresh Sync (Fallback Only)
+
+Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
+
+```typescript
+const sync = createSync({
+    frequency: 'every hour',
+
+    models: {
+        Record: RecordSchema
+    },
+
+    exec: async (nango) => {
+        await nango.trackDeletesStart('Record');
+
+        const proxyConfig = {
+            // https://api-docs-url
+            endpoint: '/api/v1/records',
+            paginate: { limit: 100 },
+            retries: 3
+        };
+
+        for await (const batch of nango.paginate(proxyConfig)) {
+            const records = batch.map((record: { id: string; name?: string; updated_at: string }) => ({
+                id: record.id,
+                name: record.name ?? null,
+                updated_at: record.updated_at
+            }));
+
+            if (records.length > 0) {
+                await nango.batchSave(records, 'Record');
+            }
+        }
+
+        await nango.trackDeletesEnd('Record');
     }
 });
 ```
@@ -188,16 +225,19 @@ await nango.setMergingStrategy({ strategy: 'ignore_if_modified_after' }, 'Contac
 
 | Method | Purpose |
 |--------|---------|
+| nango.getCheckpoint() | Read the last saved incremental progress |
+| nango.saveCheckpoint(checkpoint) | Persist progress after each processed batch/page |
 | nango.paginate(config) | Iterate through paginated responses |
 | nango.batchSave(records, model) | Save records to cache |
 | nango.batchDelete(records, model) | Mark as deleted (incremental) |
-| nango.trackDeletesStart(model) | Start automated deletion detection (full refresh) |
-| nango.trackDeletesEnd(model) | Mark missing records as deleted (full refresh) |
-| nango.lastSyncDate | Last sync timestamp (incremental) |
+| nango.trackDeletesStart(model) | Start automated deletion detection (full refresh fallback) |
+| nango.trackDeletesEnd(model) | Mark missing records as deleted (full refresh fallback) |
 
 ### Pagination Helper (Advanced Config)
 
 Nango preconfigures pagination for some APIs. Override when needed.
+
+For incremental syncs, pair pagination with checkpoints and call `nango.saveCheckpoint()` inside the loop after each processed page/batch.
 
 Pagination types: cursor, link, offset.
 
@@ -225,19 +265,23 @@ Link pagination uses link_rel_in_response_header or link_path_in_response_body. 
 ### Manual Cursor-Based Pagination (If Needed)
 
 ```typescript
-let cursor: string | undefined;
+const checkpoint = await nango.getCheckpoint<{ cursor?: string }>();
+let cursor: string | undefined = checkpoint?.cursor;
+
 while (true) {
     const res = await nango.get({
         endpoint: '/api',
         params: { cursor },
         retries: 3
     });
-    const records = res.data.items.map((item: { id: string; name?: string }) => ({
+    const records = res.data.items.map((item: { id: string; name?: string; updated_at: string }) => ({
         id: item.id,
-        name: item.name ?? null
+        name: item.name ?? null,
+        updated_at: item.updated_at
     }));
     await nango.batchSave(records, 'Record');
     cursor = res.data.next_cursor;
+    await nango.saveCheckpoint({ cursor });
     if (!cursor) break;
 }
 ```

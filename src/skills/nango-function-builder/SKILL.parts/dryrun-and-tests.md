@@ -76,10 +76,10 @@ After validation passes, record mocks (generates `<sync-name>.test.json`):
 nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
 ```
 
-Incremental sync testing:
+Checkpointed incremental sync testing:
 
 ```
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --lastSyncDate "YYYY-MM-DD"
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
 ```
 
 Stub metadata (when your function calls nango.getMetadata()):
@@ -96,6 +96,7 @@ Notes:
 - Connection ID is the second positional argument (no `--connection-id` flag).
 - Use `--integration-id <integration-id>` when script names overlap across integrations.
 - Common flags: `--variant <name>`.
+- Prefer `--checkpoint` for new incremental syncs; `--lastSyncDate` is a legacy pattern.
 - If you do not have `nango` on PATH, use `npx nango ...`.
 - CLI upgrade prompts can block non-interactive runs. Workaround: set `NANGO_CLI_UPGRADE_MODE=ignore`.
 

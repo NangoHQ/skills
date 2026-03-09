@@ -15,11 +15,12 @@ Action-specific:
 
 Sync-specific:
 - Model name (singular, PascalCase)
-- Sync type (full or incremental)
 - Frequency (every hour, every 5 minutes, etc.)
+- Checkpoint strategy (preferred: modified-at filter, changed-records endpoint, cursor/page token, or composite checkpoint)
+- Delete strategy (deleted-record endpoint/webhook, or why full refresh is required)
 - Metadata JSON if required (team_id, workspace_id)
 
-If any of these are missing, ask the user for them before writing code. Use their values in dryrun commands and tests.
+If any required external values are missing, ask the user for them before writing code. For sync strategy, inspect the API docs/sample response first and choose a checkpoint plus deletion approach whenever the provider supports one. Use the chosen strategy in dryrun commands and tests.
 
 ### Prompt Templates (Use When Details Are Missing)
 
@@ -48,7 +49,8 @@ Sync Name (kebab-case):
 Model Name (singular, PascalCase):
 Endpoint Path (for Nango endpoint):
 Frequency (every hour, every 5 minutes, etc.):
-Sync Type (full or incremental):
+Checkpoint Strategy (preferred: updated_at/since filter, cursor, page token, or composite checkpoint):
+Delete Strategy (deleted-record endpoint/webhook, or why full refresh is required):
 Metadata JSON (if required):
 API Reference URL:
 ```

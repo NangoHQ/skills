@@ -7,5 +7,6 @@ Action:
 
 Sync:
 - Continuous data sync on a schedule
-- Fetches all records or incremental changes
-- Uses batchSave/batchDelete
+- Prefer checkpoint-based incremental syncs when the API exposes changes reliably
+- Uses `batchSave()` / `batchDelete()` for incremental syncs
+- Falls back to full refresh only when the API cannot reliably return changes or deletions
