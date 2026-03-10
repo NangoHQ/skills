@@ -14,7 +14,8 @@ Action:
 Sync:
 - [ ] Nango root verified
 - [ ] Models map defined; record ids are strings
-- [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is clearly required
+- [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is explicitly justified from provider docs/sample responses
+- [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] paginate + batchSave in exec
 - [ ] `nango.getCheckpoint()` / `nango.saveCheckpoint()` used after each processed batch/page for incremental syncs
 - [ ] Deletion strategy matches sync type: `batchDelete()` for incremental when supported, otherwise `trackDeletesStart()` / `trackDeletesEnd()` for full refresh fallback

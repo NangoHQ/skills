@@ -39,7 +39,9 @@ export default sync;
 ### Choose the Sync Strategy First
 
 - Start with checkpoint-based incremental syncs.
+- Treat checkpoints as required unless the provider docs prove there is no practical way to fetch only changes or resume safely.
 - Use checkpoints when the API supports `updated_at` / `modified_since` filters, changed-records endpoints, cursors/page tokens, or webhooks that let you resume safely.
+- If you fall back to full refresh, explicitly explain the blocking API limitation (for example no change filter/feed, no deleted-record feed, no resumable cursor/page token, or only full-list endpoints). "Full refresh is simpler" is not a valid reason.
 - Save progress with `nango.saveCheckpoint()` after each processed page/batch.
 - Fall back to full refresh only when the provider cannot return changed records or deletions, or the dataset is trivially small.
 
@@ -125,7 +127,7 @@ If the provider can return identical timestamps or requires pagination state to 
 
 ### Full Refresh Sync (Fallback Only)
 
-Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
+Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. When you choose this path, explicitly state which API limitation blocked checkpoints. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
 
 ```typescript
 const sync = createSync({

@@ -25,17 +25,18 @@ Build deployable Nango functions (actions and syncs) with repeatable patterns an
 
 ## Workflow (recommended)
 1. Decide whether this is an action or a sync.
-2. For syncs, inspect the provider docs for an incremental path first (`updated_at` / `modified_since` filters, changed-records endpoints, deleted-record endpoints, cursors/page tokens, or webhooks). Prefer checkpoints when the API can expose changes reliably. Use a full refresh only if the docs show no practical incremental strategy.
+2. For syncs, inspect the provider docs for an incremental path first (`updated_at` / `modified_since` filters, changed-records endpoints, deleted-record endpoints, cursors/page tokens, or webhooks). Default to checkpoints whenever the API can expose changes or resume safely. Use a full refresh only if the docs show no practical checkpoint strategy.
 3. Gather required inputs (integration id, connection id, script name, and API docs/sample responses; actions: test input JSON). For syncs, also capture the checkpoint shape you will store (timestamp, cursor, page token, or composite) and the deletion strategy. If you need connection details/credentials or want to do setup/discovery calls, use the Nango HTTP API (Connections/Proxy; auth with Nango secret key); do not invent Nango CLI token/connection commands.
-4. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
-5. Compile as needed with `nango compile` (one-off).
-6. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
-7. Register the file in `index.ts` (side-effect import).
-8. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` (actions: never omit `--input '{...}'`; use `--input '{}'` for no-input actions; checkpointed syncs can use `--checkpoint '{...}'` to simulate a resumed run).
-9. If validation can't pass, stop and return early stating the missing external state/inputs required (never hand-author/edit/rename/move `*.test.json`).
-10. Ensure `<script-name>.test.json` exists by running `nango dryrun ... --save -e dev --no-interactive --auto-confirm` (actions: always include `--input '{...}'`; to update mocks, re-run `--save`, do not edit the file).
-11. Generate tests with `nango generate:tests` (required) and run `npm test`.
-12. Deploy with `nango deploy dev`.
+4. Before writing a sync, confirm one of these is true: checkpoints will be used, or you can explicitly explain why they cannot be used from the provider docs/sample payloads (for example no change filter/feed, no resumable cursor/page token, or only full-list endpoints). Do not choose full refresh just because it is simpler.
+5. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
+6. Compile as needed with `nango compile` (one-off).
+7. Create/update the function file under `{integrationId}/actions/` or `{integrationId}/syncs/`.
+8. Register the file in `index.ts` (side-effect import).
+9. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` (actions: never omit `--input '{...}'`; use `--input '{}'` for no-input actions; checkpointed syncs can use `--checkpoint '{...}'` to simulate a resumed run).
+10. If validation can't pass, stop and return early stating the missing external state/inputs required (never hand-author/edit/rename/move `*.test.json`).
+11. Ensure `<script-name>.test.json` exists by running `nango dryrun ... --save -e dev --no-interactive --auto-confirm` (actions: always include `--input '{...}'`; to update mocks, re-run `--save`, do not edit the file).
+12. Generate tests with `nango generate:tests` (required) and run `npm test`.
+13. Deploy with `nango deploy dev`.
 
 ## Decide: Action vs Sync
 
@@ -46,7 +47,7 @@ Action:
 
 Sync:
 - Continuous data sync on a schedule
-- Prefer checkpoint-based incremental syncs when the API exposes changes reliably
+- Prefer checkpoint-based incremental syncs when the API exposes changes reliably; explain explicitly when that is not possible
 - Uses `batchSave()` / `batchDelete()` for incremental syncs
 - Falls back to full refresh only when the API cannot reliably return changes or deletions
 
@@ -68,11 +69,12 @@ Action-specific:
 Sync-specific:
 - Model name (singular, PascalCase)
 - Frequency (every hour, every 5 minutes, etc.)
-- Checkpoint strategy (preferred: modified-at filter, changed-records endpoint, cursor/page token, or composite checkpoint)
+- Checkpoint strategy (required default: modified-at filter, changed-records endpoint, cursor/page token, or composite checkpoint)
+- If proposing a full refresh, the explicit reason checkpoints cannot work from the provider docs/sample response
 - Delete strategy (deleted-record endpoint/webhook, or why full refresh is required)
 - Metadata JSON if required (team_id, workspace_id)
 
-If any required external values are missing, ask the user for them before writing code. For sync strategy, inspect the API docs/sample response first and choose a checkpoint plus deletion approach whenever the provider supports one. Use the chosen strategy in dryrun commands and tests.
+If any required external values are missing, ask the user for them before writing code. For sync strategy, inspect the API docs/sample response first and choose a checkpoint plus deletion approach whenever the provider supports one. If you cannot find a viable checkpoint strategy, state exactly why before writing a full refresh. Use the chosen strategy in dryrun commands and tests.
 
 ### Prompt Templates (Use When Details Are Missing)
 
@@ -102,6 +104,7 @@ Model Name (singular, PascalCase):
 Endpoint Path (for Nango endpoint):
 Frequency (every hour, every 5 minutes, etc.):
 Checkpoint Strategy (preferred: updated_at/since filter, cursor, page token, or composite checkpoint):
+If no checkpoint strategy works, why not (required for full refresh):
 Delete Strategy (deleted-record endpoint/webhook, or why full refresh is required):
 Metadata JSON (if required):
 API Reference URL:
@@ -181,9 +184,10 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 - Register every action/sync in `index.ts` via side-effect import (`import './<path>.js'`) or it will not load.
 - You cannot install/import arbitrary third-party packages in Functions. Relative imports inside the Nango project are supported. Pre-included dependencies include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Sync records must include a stable string `id`.
-- Default new syncs to checkpoints. Declare a `checkpoint` schema and use `nango.getCheckpoint()` / `nango.saveCheckpoint()` to persist progress after each processed page/batch.
+- Default new syncs to checkpoints. Treat checkpoint-based incremental syncs as the baseline, not an optional optimization. Declare a `checkpoint` schema and use `nango.getCheckpoint()` / `nango.saveCheckpoint()` to persist progress after each processed page/batch.
 - For new incremental syncs, do not start from `syncType: 'incremental'` / `nango.lastSyncDate`; checkpoints replace that pattern.
 - Full refresh syncs are a fallback for APIs that cannot return changed/deleted records or for trivially small datasets.
+- Before building a full refresh sync, explicitly state why checkpoints cannot be used. "It is easier" is not a valid reason; cite the provider limitation from the docs or sample payloads (for example no change filter/feed, no resumable cursor/page token, or only full-list endpoints).
 - Action outputs cannot exceed 2MB.
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For incremental syncs, prefer explicit deleted-record/tombstone endpoints or webhook delete events plus `batchDelete()`. For full refresh fallbacks, use `trackDeletesStart()` / `trackDeletesEnd()` and only call `trackDeletesEnd()` after the full dataset has been fetched and saved (do not swallow errors and still call it).
 - Checkpointed full refreshes are still full refreshes. If you checkpoint pagination state to resume a long backfill, only call `trackDeletesEnd()` in the execution that finishes the complete refresh window.
@@ -641,7 +645,9 @@ export default sync;
 ### Choose the Sync Strategy First
 
 - Start with checkpoint-based incremental syncs.
+- Treat checkpoints as required unless the provider docs prove there is no practical way to fetch only changes or resume safely.
 - Use checkpoints when the API supports `updated_at` / `modified_since` filters, changed-records endpoints, cursors/page tokens, or webhooks that let you resume safely.
+- If you fall back to full refresh, explicitly explain the blocking API limitation (for example no change filter/feed, no deleted-record feed, no resumable cursor/page token, or only full-list endpoints). "Full refresh is simpler" is not a valid reason.
 - Save progress with `nango.saveCheckpoint()` after each processed page/batch.
 - Fall back to full refresh only when the provider cannot return changed records or deletions, or the dataset is trivially small.
 
@@ -727,7 +733,7 @@ If the provider can return identical timestamps or requires pagination state to 
 
 ### Full Refresh Sync (Fallback Only)
 
-Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
+Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. When you choose this path, explicitly state which API limitation blocked checkpoints. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
 
 ```typescript
 const sync = createSync({
@@ -914,6 +920,7 @@ If web fetching returns incomplete docs (JS-rendered):
 | Mistake | Impact | Fix |
 |---------|--------|-----|
 | Defaulting to full refresh when the API supports checkpoints | Slow/costly syncs; poor failure recovery | Start with a `checkpoint` schema plus `nango.getCheckpoint()` / `nango.saveCheckpoint()` and only fall back to full refresh when the provider truly cannot return changes |
+| Choosing full refresh without explaining why checkpoints are impossible | Agents repeat inefficient patterns; provider limitations stay implicit | Cite the exact API limitation from the docs/sample payloads before using full refresh |
 | Using `syncType: 'incremental'` / `nango.lastSyncDate` in a new sync | Legacy pattern; weaker recovery | Define a `checkpoint` schema, use `nango.getCheckpoint()` / `nango.saveCheckpoint()`, and dryrun with `--checkpoint` |
 | Missing/incorrect index.ts import | Function not loaded | Add side-effect import (`import './<path>.js'`) |
 | Hand-authoring/editing/renaming `*.test.json` (including `hash` tampering) | Fake/brittle tests; breaks recorded mock integrity | Re-run `nango dryrun ... --validate` until it passes, then run `nango dryrun ... --save` to re-record `<script-name>.test.json` (simulate error paths in `.test.ts` with `vi.spyOn`, not by editing mocks) |
@@ -946,7 +953,8 @@ Action:
 Sync:
 - [ ] Nango root verified
 - [ ] Models map defined; record ids are strings
-- [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is clearly required
+- [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is explicitly justified from provider docs/sample responses
+- [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] paginate + batchSave in exec
 - [ ] `nango.getCheckpoint()` / `nango.saveCheckpoint()` used after each processed batch/page for incremental syncs
 - [ ] Deletion strategy matches sync type: `batchDelete()` for incremental when supported, otherwise `trackDeletesStart()` / `trackDeletesEnd()` for full refresh fallback

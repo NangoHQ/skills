@@ -3,6 +3,7 @@
 | Mistake | Impact | Fix |
 |---------|--------|-----|
 | Defaulting to full refresh when the API supports checkpoints | Slow/costly syncs; poor failure recovery | Start with a `checkpoint` schema plus `nango.getCheckpoint()` / `nango.saveCheckpoint()` and only fall back to full refresh when the provider truly cannot return changes |
+| Choosing full refresh without explaining why checkpoints are impossible | Agents repeat inefficient patterns; provider limitations stay implicit | Cite the exact API limitation from the docs/sample payloads before using full refresh |
 | Using `syncType: 'incremental'` / `nango.lastSyncDate` in a new sync | Legacy pattern; weaker recovery | Define a `checkpoint` schema, use `nango.getCheckpoint()` / `nango.saveCheckpoint()`, and dryrun with `--checkpoint` |
 | Missing/incorrect index.ts import | Function not loaded | Add side-effect import (`import './<path>.js'`) |
 | Hand-authoring/editing/renaming `*.test.json` (including `hash` tampering) | Fake/brittle tests; breaks recorded mock integrity | Re-run `nango dryrun ... --validate` until it passes, then run `nango dryrun ... --save` to re-record `<script-name>.test.json` (simulate error paths in `.test.ts` with `vi.spyOn`, not by editing mocks) |
