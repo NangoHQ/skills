@@ -41,6 +41,7 @@ export default sync;
 - Start with checkpoint-based incremental syncs.
 - Treat checkpoints as required unless the provider docs prove there is no practical way to fetch only changes or resume safely.
 - Use checkpoints when the API supports `updated_at` / `modified_since` filters, changed-records endpoints, cursors/page tokens, or webhooks that let you resume safely.
+- For list sync logic, default to `nango.paginate(...)` + `nango.batchSave(...)`.
 - If you fall back to full refresh, explicitly explain the blocking API limitation (for example no change filter/feed, no deleted-record feed, no resumable cursor/page token, or only full-list endpoints). "Full refresh is simpler" is not a valid reason.
 - Save progress with `nango.saveCheckpoint()` after each processed page/batch.
 - Fall back to full refresh only when the provider cannot return changed records or deletions, or the dataset is trivially small.
@@ -49,7 +50,7 @@ export default sync;
 
 - Do not use `trackDeletes: true`. It is deprecated.
 - Incremental syncs: if the API exposes deleted records, tombstones, or webhook delete events, call `batchDelete()`.
-- Full refresh fallback (including checkpoint-based full refresh): call `trackDeletesStart` before fetching, and `trackDeletesEnd` after all batching record calls (`batchSave`/`batchUpdate`/`batchDelete`).
+- Full refresh fallback is a last resort. When you use it (including checkpoint-based full refresh), call `await nango.trackDeletesStart('<ModelName>')` before fetching/saving and `await nango.trackDeletesEnd('<ModelName>')` only after a successful full fetch + save.
 - Checkpointed full refreshes are still full refreshes. If you checkpoint pagination state to resume a long backfill, only call `trackDeletesEnd` in the execution that finishes saving the complete dataset.
 
 Important: deletion detection is a soft delete. Records remain in the cache but are marked as deleted in metadata.
@@ -127,7 +128,7 @@ If the provider can return identical timestamps or requires pagination state to 
 
 ### Full Refresh Sync (Fallback Only)
 
-Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. When you choose this path, explicitly state which API limitation blocked checkpoints. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
+Use this only when the provider cannot filter by changes, expose deleted records, or provide a practical checkpoint strategy. This is also the only time full refresh deletion detection should be considered, and even then it is a last resort. When you choose this path, explicitly state which API limitation blocked checkpoints. For long backfills, you can checkpoint pagination state, but it is still a full refresh and `trackDeletesEnd()` must only run after the complete dataset is saved.
 
 ```typescript
 const sync = createSync({

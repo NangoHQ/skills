@@ -16,9 +16,9 @@ Sync:
 - [ ] Models map defined; record ids are strings
 - [ ] Incremental strategy chosen first; `checkpoint` schema defined unless full refresh fallback is explicitly justified from provider docs/sample responses
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
-- [ ] paginate + batchSave in exec
+- [ ] List sync logic uses `nango.paginate()` + `nango.batchSave()` in `exec`
 - [ ] `nango.getCheckpoint()` / `nango.saveCheckpoint()` used after each processed batch/page for incremental syncs
-- [ ] Deletion strategy matches sync type: `batchDelete()` for incremental when supported, otherwise `trackDeletesStart()` / `trackDeletesEnd()` for full refresh fallback
+- [ ] Deletion strategy matches sync type: `batchDelete()` for incremental when supported, otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch + save
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`

@@ -8,10 +8,11 @@
 - Sync records must include a stable string `id`.
 - Default new syncs to checkpoints. Treat checkpoint-based incremental syncs as the baseline, not an optional optimization. Declare a `checkpoint` schema and use `nango.getCheckpoint()` / `nango.saveCheckpoint()` to persist progress after each processed page/batch.
 - For new incremental syncs, do not start from `syncType: 'incremental'` / `nango.lastSyncDate`; checkpoints replace that pattern.
+- For list sync logic, default to `nango.paginate(...)` + `nango.batchSave(...)`.
 - Full refresh syncs are a fallback for APIs that cannot return changed/deleted records or for trivially small datasets.
 - Before building a full refresh sync, explicitly state why checkpoints cannot be used. "It is easier" is not a valid reason; cite the provider limitation from the docs or sample payloads (for example no change filter/feed, no resumable cursor/page token, or only full-list endpoints).
 - Action outputs cannot exceed 2MB.
-- `deleteRecordsFromPreviousExecutions()` is deprecated. For incremental syncs, prefer explicit deleted-record/tombstone endpoints or webhook delete events plus `batchDelete()`. For full refresh fallbacks, use `trackDeletesStart()` / `trackDeletesEnd()` and only call `trackDeletesEnd()` after the full dataset has been fetched and saved (do not swallow errors and still call it).
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For incremental syncs, prefer explicit deleted-record/tombstone endpoints or webhook delete events plus `batchDelete()`. Full refresh deletion detection is a last resort. When you use it, call `await nango.trackDeletesStart('<ModelName>')` before fetching/saving and `await nango.trackDeletesEnd('<ModelName>')` only after the full dataset has been successfully fetched and saved (do not swallow errors and still call it).
 - Checkpointed full refreshes are still full refreshes. If you checkpoint pagination state to resume a long backfill, only call `trackDeletesEnd()` in the execution that finishes the complete refresh window.
 - HTTP request retries default to `0`. Set `retries` intentionally (and be careful retrying non-idempotent writes).
 
