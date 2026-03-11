@@ -19,9 +19,10 @@ Sync:
 - [ ] Incremental strategy was chosen first and a `checkpoint` schema is defined unless full refresh fallback is explicitly justified from provider docs/sample responses
 - [ ] `nango.getCheckpoint()` is read at the start and `nango.saveCheckpoint()` is used after each processed batch/page
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
+- [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] List sync logic uses `nango.paginate()` plus `nango.batchSave()` unless the API shape requires a manual loop
-- [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental when supported, otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
+- [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`

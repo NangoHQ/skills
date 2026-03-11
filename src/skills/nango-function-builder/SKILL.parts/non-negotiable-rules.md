@@ -21,6 +21,7 @@
 - Full refresh is fallback only. Use it only when the provider cannot return changed records, deleted records, or resumable state, or when the dataset is trivially small.
 - Before writing a full refresh sync, cite the exact provider limitation from the docs or sample payloads. "It is easier" is not a valid reason.
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh fallback, call `await nango.trackDeletesStart('<ModelName>')` before fetching/saving and `await nango.trackDeletesEnd('<ModelName>')` only after a successful full fetch plus save.
+- Never combine `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint request (`modified_after`, `updated_after`, changed-records endpoint, etc.). Those requests return only changed rows, so `trackDeletesEnd()` would delete every unchanged row that was omitted from the response.
 - Checkpointed full refreshes are still full refreshes. Only call `trackDeletesEnd()` in the execution that finishes the complete refresh window.
 
 ### Conventions

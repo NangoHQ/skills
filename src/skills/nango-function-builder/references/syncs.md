@@ -425,6 +425,8 @@ if (deletions.length > 0) {
 
 Use full refresh only when the provider truly cannot return changes, deletions, or resumable state. State the blocker explicitly before using this pattern.
 
+Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
+
 ```typescript
 const sync = createSync({
     frequency: 'every hour',
@@ -517,3 +519,28 @@ Why this is invalid:
 - delete handling is disconnected from the saved progress
 
 The checkpoint must change the request or resume state.
+
+Bad example: a changed-only checkpoint is combined with `trackDeletesStart()` / `trackDeletesEnd()`.
+
+```typescript
+const checkpoint = await nango.getCheckpoint<{ modified_after?: string }>();
+
+await nango.trackDeletesStart('Contact');
+
+const response = await nango.get({
+    endpoint: '/v1/contacts',
+    params: checkpoint?.modified_after ? { modified_after: checkpoint.modified_after } : {},
+    retries: 3
+});
+
+await nango.batchSave(response.data.items, 'Contact');
+await nango.saveCheckpoint({
+    modified_after: new Date().toISOString()
+});
+await nango.trackDeletesEnd('Contact');
+```
+
+Why this is invalid:
+- the endpoint returns only changed contacts
+- unchanged contacts are absent from this execution
+- `trackDeletesEnd()` will delete those unchanged contacts as if they disappeared at the provider

@@ -19,6 +19,7 @@ If the task is a sync, read `references/syncs.md` before writing code and state 
   - change source (`updated_at`, `modified_since`, changed-records endpoint, cursor, page token, offset/page, `since_id`, or webhook)
   - checkpoint schema
   - how the checkpoint changes the provider request or resume state
+  - whether the request still walks the full dataset or returns changed rows only
   - delete strategy
 - Full refresh blocker:
   - exact provider limitation from the docs or sample payloads
@@ -29,6 +30,7 @@ Invalid sync implementations:
 - `saveCheckpoint()` without `getCheckpoint()`
 - reading or saving a checkpoint without using it in request params or pagination state
 - using `syncType: 'incremental'` or `nango.lastSyncDate` in a new sync
+- using `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint (`modified_after`, `updated_after`, changed-records endpoint). Those requests omit unchanged rows, so `trackDeletesEnd()` will falsely delete them.
 - using `trackDeletesStart()` / `trackDeletesEnd()` in an incremental sync that already has explicit deleted-record events
 
 ## Choose the Path
@@ -45,7 +47,7 @@ Sync:
 ## Workflow (recommended)
 1. Decide whether this is an action or a sync.
 2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
-3. For syncs, inspect the provider docs or sample payloads for a checkpointable path first (`updated_at`, `modified_since`, changed-records endpoints, deleted-record endpoints, cursors, page tokens, offset/page, `since_id`, or webhooks) and complete the Sync Strategy Gate before writing code.
+3. For syncs, inspect the provider docs or sample payloads for a checkpointable path first (`updated_at`, `modified_since`, changed-records endpoints, deleted-record endpoints, cursors, page tokens, offset/page, `since_id`, or webhooks), decide whether it returns the full dataset or only changed rows, and complete the Sync Strategy Gate before writing code.
 4. Gather required inputs and external values. If you need connection details, credentials, or discovery calls, use the Nango HTTP API (Connections/Proxy; auth with the Nango secret key). Do not invent Nango CLI token/connection commands.
 5. Verify this is a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
 6. Create or update the function under `{integrationId}/actions/` or `{integrationId}/syncs/`, then register it in `index.ts`.
@@ -169,6 +171,7 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 - Full refresh is fallback only. Use it only when the provider cannot return changed records, deleted records, or resumable state, or when the dataset is trivially small.
 - Before writing a full refresh sync, cite the exact provider limitation from the docs or sample payloads. "It is easier" is not a valid reason.
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh fallback, call `await nango.trackDeletesStart('<ModelName>')` before fetching/saving and `await nango.trackDeletesEnd('<ModelName>')` only after a successful full fetch plus save.
+- Never combine `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint request (`modified_after`, `updated_after`, changed-records endpoint, etc.). Those requests return only changed rows, so `trackDeletesEnd()` would delete every unchanged row that was omitted from the response.
 - Checkpointed full refreshes are still full refreshes. Only call `trackDeletesEnd()` in the execution that finishes the complete refresh window.
 
 ### Conventions
@@ -285,9 +288,10 @@ Sync:
 - [ ] Incremental strategy was chosen first and a `checkpoint` schema is defined unless full refresh fallback is explicitly justified from provider docs/sample responses
 - [ ] `nango.getCheckpoint()` is read at the start and `nango.saveCheckpoint()` is used after each processed batch/page
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
+- [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] List sync logic uses `nango.paginate()` plus `nango.batchSave()` unless the API shape requires a manual loop
-- [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental when supported, otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
+- [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`
