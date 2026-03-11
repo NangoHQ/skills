@@ -4,11 +4,11 @@
 
 <!-- include: ./SKILL.parts/when-to-use.md -->
 
-<!-- include: ./SKILL.parts/links.md -->
-
-<!-- include: ./SKILL.parts/workflow.md -->
+<!-- include: ./SKILL.parts/sync-strategy-gate.md -->
 
 <!-- include: ./SKILL.parts/action-vs-sync.md -->
+
+<!-- include: ./SKILL.parts/workflow.md -->
 
 <!-- include: ./SKILL.parts/required-inputs.md -->
 
@@ -20,14 +20,12 @@
 
 <!-- include: ./SKILL.parts/dryrun-and-tests.md -->
 
-<!-- include: ./SKILL.parts/action-template.md -->
+<!-- include: ./SKILL.parts/references.md -->
 
-<!-- include: ./SKILL.parts/sync-template.md -->
+<!-- include: ./SKILL.parts/links.md -->
 
 <!-- include: ./SKILL.parts/deploy.md -->
 
 <!-- include: ./SKILL.parts/api-docs.md -->
-
-<!-- include: ./SKILL.parts/common-mistakes.md -->
 
 <!-- include: ./SKILL.parts/final-checklists.md -->

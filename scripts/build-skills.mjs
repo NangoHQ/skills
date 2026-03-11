@@ -1,11 +1,43 @@
 #!/usr/bin/env node
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const srcSkillsDir = path.join(repoRoot, 'src', 'skills');
 const includeRe = /^\s*<!--\s*include:\s*(.+?)\s*-->\s*$/;
+
+async function copyDir(srcDir, destDir) {
+    let entries;
+
+    try {
+        entries = await readdir(srcDir, { withFileTypes: true });
+    } catch (err) {
+        if (err?.code === 'ENOENT') {
+            return false;
+        }
+
+        throw err;
+    }
+
+    await mkdir(destDir, { recursive: true });
+
+    for (const entry of entries) {
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+
+        if (entry.isDirectory()) {
+            await copyDir(srcPath, destPath);
+            continue;
+        }
+
+        if (entry.isFile()) {
+            await copyFile(srcPath, destPath);
+        }
+    }
+
+    return true;
+}
 
 async function buildSkill(skillName) {
     const templatePath = path.join(srcSkillsDir, skillName, 'SKILL.template.md');
@@ -42,10 +74,22 @@ async function buildSkill(skillName) {
         output += included;
     }
 
-    const outPath = path.join(repoRoot, 'skills', skillName, 'SKILL.md');
+    const skillOutDir = path.join(repoRoot, 'skills', skillName);
+    const outPath = path.join(skillOutDir, 'SKILL.md');
     await mkdir(path.dirname(outPath), { recursive: true });
     await writeFile(outPath, output, 'utf8');
+
+    const outReferencesDir = path.join(skillOutDir, 'references');
+    await rm(outReferencesDir, { recursive: true, force: true });
+
+    const copiedReferences = await copyDir(path.join(srcSkillsDir, skillName, 'references'), outReferencesDir);
+
     console.log(`Built: ${path.relative(repoRoot, outPath)}`);
+
+    if (copiedReferences) {
+        console.log(`Copied: ${path.relative(repoRoot, outReferencesDir)}`);
+    }
+
     return true;
 }
 

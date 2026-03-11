@@ -16,43 +16,10 @@ Action-specific:
 Sync-specific:
 - Model name (singular, PascalCase)
 - Frequency (every hour, every 5 minutes, etc.)
-- Checkpoint strategy (required default: modified-at filter, changed-records endpoint, cursor/page token, or composite checkpoint)
-- If proposing a full refresh, the explicit reason checkpoints cannot work from the provider docs/sample response
+- Checkpoint schema (timestamp, cursor, page token, offset/page, `since_id`, or composite)
+- How the checkpoint changes the provider request or resume state
 - Delete strategy (deleted-record endpoint/webhook, or why full refresh is required)
+- If proposing a full refresh, the exact provider limitation that blocks checkpoints from the docs/sample response
 - Metadata JSON if required (team_id, workspace_id)
 
-If any required external values are missing, ask the user for them before writing code. For sync strategy, inspect the API docs/sample response first and choose a checkpoint plus deletion approach whenever the provider supports one. If you cannot find a viable checkpoint strategy, state exactly why before writing a full refresh. Use the chosen strategy in dryrun commands and tests.
-
-### Prompt Templates (Use When Details Are Missing)
-
-Action prompt:
-
-```
-Please provide:
-Integration ID (required):
-Connection ID (required):
-Use Case Summary:
-Action Inputs:
-Action Outputs:
-Metadata JSON (if required):
-Action Name (kebab-case):
-API Reference URL:
-Test Input JSON (required):
-```
-
-Sync prompt:
-
-```
-Please provide:
-Integration ID (required):
-Connection ID (required):
-Sync Name (kebab-case):
-Model Name (singular, PascalCase):
-Endpoint Path (for Nango endpoint):
-Frequency (every hour, every 5 minutes, etc.):
-Checkpoint Strategy (preferred: updated_at/since filter, cursor, page token, or composite checkpoint):
-If no checkpoint strategy works, why not (required for full refresh):
-Delete Strategy (deleted-record endpoint/webhook, or why full refresh is required):
-Metadata JSON (if required):
-API Reference URL:
-```
+If any required external values are missing, ask a targeted question after checking the repo and provider docs. For syncs, choose a checkpoint plus deletion strategy whenever the provider supports one. If you cannot find a viable checkpoint strategy, state exactly why before writing a full refresh.

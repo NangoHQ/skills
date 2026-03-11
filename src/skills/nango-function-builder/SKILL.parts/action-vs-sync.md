@@ -1,12 +1,10 @@
-## Decide: Action vs Sync
+## Choose the Path
 
 Action:
-- One-time request, user-triggered
-- CRUD operations and small lookups
-- Thin API wrapper
+- One-time request, user-triggered, built with `createAction()`
+- Read `references/actions.md` before writing code
 
 Sync:
-- Continuous data sync on a schedule
-- Prefer checkpoint-based incremental syncs when the API exposes changes reliably; explain explicitly when that is not possible
-- Uses `batchSave()` / `batchDelete()` for incremental syncs
-- Falls back to full refresh only when the API cannot reliably return changes or deletions
+- Scheduled or webhook-driven cache updates built with `createSync()`
+- Complete the Sync Strategy Gate first
+- Read `references/syncs.md` before writing code
