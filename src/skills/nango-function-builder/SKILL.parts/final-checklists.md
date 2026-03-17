@@ -3,8 +3,9 @@
 Action:
 - [ ] Nango root verified
 - [ ] `references/actions.md` was used for the action pattern
-- [ ] Schemas and types are clear (inline or relative imports)
+- [ ] Schemas and types are clear, and missing-value rules match the provider vs normalized contract
 - [ ] `createAction()` includes endpoint, input, output, and scopes when required
+- [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
 - [ ] Registered in index.ts
@@ -15,13 +16,14 @@ Action:
 Sync:
 - [ ] Nango root verified
 - [ ] `references/syncs.md` was used for the sync pattern
-- [ ] Models map is defined and record ids are stable strings
-- [ ] Incremental strategy was chosen first and a `checkpoint` schema is defined unless full refresh fallback is explicitly justified from provider docs/sample responses
-- [ ] `nango.getCheckpoint()` is read at the start and `nango.saveCheckpoint()` is used after each processed batch/page
+- [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters
+- [ ] Incremental was chosen first, with a checkpoint schema unless full refresh is explicitly justified from docs or payloads
+- [ ] `nango.getCheckpoint()` is read at the start and `nango.saveCheckpoint()` runs after each page or batch
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
 - [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
-- [ ] List sync logic uses `nango.paginate()` plus `nango.batchSave()` unless the API shape requires a manual loop
+- [ ] Raw provider schemas model omitted vs `null` correctly, and fields use passthrough casing or the API's majority casing
+- [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
 - [ ] Registered in index.ts

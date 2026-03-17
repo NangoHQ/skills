@@ -1,6 +1,7 @@
 # Actions Reference
 
 ## Contents
+- Schema and casing rules
 - Base template
 - Metadata
 - CRUD patterns
@@ -8,12 +9,22 @@
 - ActionError
 - Dryrun examples
 
+## Schema and casing rules
+
+- Default non-required inputs to `.optional()`.
+- If `null` means "clear this value", use `.nullable().optional()` and document it.
+- Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.
+- Final outputs should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
+- Passthrough fields keep provider casing. Derived fields should follow the majority casing of that API.
+- Prefer `.nullable()` over `z.union([z.null(), T])` or `z.union([T, z.null()])`.
+
 ## Base template
 
 Notes:
-- `input` is required even for no-input actions. Use `z.object({})`.
-- Do not import `ActionError` as a value from `nango`. Throw `new nango.ActionError(payload)` using the `nango` exec parameter.
-- `ProxyConfiguration` typing is optional. Only import it if you explicitly annotate a variable.
+- `input` is required. For no-input actions, use `z.object({})`.
+- Do not import `ActionError`. Throw `new nango.ActionError(payload)` from the `nango` exec param.
+- Import `ProxyConfiguration` only if you annotate a variable.
+- This example uses snake_case. Rename fields for camelCase APIs.
 
 ```typescript
 import { z } from 'zod';
@@ -24,9 +35,14 @@ const InputSchema = z.object({
     // For no-input actions use: z.object({})
 });
 
+const ProviderUserSchema = z.object({
+    id: z.string(),
+    name: z.string().nullable()
+});
+
 const OutputSchema = z.object({
     id: z.string(),
-    name: z.union([z.string(), z.null()])
+    name: z.string().optional()
 });
 
 const action = createAction({
@@ -46,7 +62,7 @@ const action = createAction({
             // https://api-docs-url
             endpoint: '/api/v1/users',
             params: {
-                userId: input.user_id
+                user_id: input.user_id
             },
             retries: 3
         });
@@ -59,9 +75,11 @@ const action = createAction({
             });
         }
 
+        const providerUser = ProviderUserSchema.parse(response.data);
+
         return {
-            id: response.data.id,
-            name: response.data.name ?? null
+            id: providerUser.id,
+            ...(providerUser.name != null && { name: providerUser.name })
         };
     }
 });
@@ -113,15 +131,24 @@ Recommended in most configs:
 Optional input fields pattern:
 
 ```typescript
+const InputSchema = z.object({
+    required_field: z.string(),
+    optional_field: z.string().optional(),
+    clearable_field: z.string().nullable().optional()
+});
+
 data: {
     required_field: input.required_field,
-    ...(input.optional_field && { optional_field: input.optional_field })
+    ...(input.optional_field !== undefined && { optional_field: input.optional_field }),
+    ...(input.clearable_field !== undefined && { clearable_field: input.clearable_field })
 }
 ```
 
+Use `!== undefined` so empty strings, `false`, and `0` are preserved.
+
 ## List actions
 
-Expose pagination as `cursor` / `next_cursor` even when the provider uses a different name.
+Expose pagination as `cursor` plus a next-cursor field in the API's majority casing. This example uses `next_cursor`; use `nextCursor` for camelCase APIs.
 
 ```typescript
 const ListInput = z.object({
@@ -130,7 +157,7 @@ const ListInput = z.object({
 
 const ListOutput = z.object({
     items: z.array(OutputSchema),
-    next_cursor: z.union([z.string(), z.null()])
+    next_cursor: z.string().optional()
 });
 
 exec: async (nango, input): Promise<z.infer<typeof ListOutput>> => {
@@ -144,11 +171,11 @@ exec: async (nango, input): Promise<z.infer<typeof ListOutput>> => {
     });
 
     return {
-        items: response.data.items.map((item: { id: string; name: string | null }) => ({
+        items: response.data.items.map((item: { id: string; name?: string | null }) => ({
             id: item.id,
-            name: item.name
+            ...(item.name != null && { name: item.name })
         })),
-        next_cursor: response.data.next_cursor || null
+        ...(response.data.next_cursor != null && { next_cursor: response.data.next_cursor })
     };
 }
 ```

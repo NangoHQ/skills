@@ -2,60 +2,67 @@
 
 ### Shared platform constraints
 
-- Zero YAML TypeScript projects do not use `nango.yaml`. Define functions with `createAction()` or `createSync()`.
-- Register every action/sync in `index.ts` via side-effect import (`import './<path>.js'`) or it will not load.
-- You cannot install/import arbitrary third-party packages in Functions. Relative imports inside the Nango project are supported. Pre-included dependencies include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
-- Use the Nango HTTP API for connection discovery, credentials, and proxy calls outside function code. Do not invent Nango CLI token/connection commands.
-- Add an API doc link comment above each provider API call.
+- Zero YAML TypeScript projects use `createAction()` / `createSync()`, not `nango.yaml`.
+- Register every action/sync in `index.ts` with side-effect imports (`import './<path>.js'`).
+- You cannot add arbitrary packages. Use relative imports; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
+- Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token/connection commands.
+- Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
-- HTTP request retries default to `0`. Set `retries` intentionally (and be careful retrying non-idempotent writes).
+- HTTP retries default to `0`; set `retries` deliberately, especially for writes.
 
 ### Sync rules
 
-- Sync records must include a stable string `id`.
-- New syncs default to checkpoints. Define a `checkpoint` schema and use `nango.getCheckpoint()` at the start plus `nango.saveCheckpoint()` after each processed batch/page.
-- A checkpoint is only valid if it changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.). Saving a checkpoint without using it is not a valid incremental sync.
-- For new syncs, do not use `syncType: 'incremental'` or `nango.lastSyncDate`; checkpoints replace that pattern.
-- Default list sync logic to `nango.paginate(...)` plus `nango.batchSave(...)`.
-- Prefer `batchDelete()` when the provider exposes deleted records, tombstones, or delete webhooks.
-- Full refresh is fallback only. Use it only when the provider cannot return changed records, deleted records, or resumable state, or when the dataset is trivially small.
-- Before writing a full refresh sync, cite the exact provider limitation from the docs or sample payloads. "It is easier" is not a valid reason.
-- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh fallback, call `await nango.trackDeletesStart('<ModelName>')` before fetching/saving and `await nango.trackDeletesEnd('<ModelName>')` only after a successful full fetch plus save.
-- Never combine `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint request (`modified_after`, `updated_after`, changed-records endpoint, etc.). Those requests return only changed rows, so `trackDeletesEnd()` would delete every unchanged row that was omitted from the response.
-- Checkpointed full refreshes are still full refreshes. Only call `trackDeletesEnd()` in the execution that finishes the complete refresh window.
+- Sync records need a stable string `id`.
+- New syncs should define a `checkpoint` schema, call `nango.getCheckpoint()` first, and `nango.saveCheckpoint()` after each page or batch.
+- A checkpoint is valid only if it changes the request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.). Saving one without using it is not incremental sync.
+- New syncs must not use `syncType: 'incremental'` or `nango.lastSyncDate`.
+- Default to `nango.paginate(...)` + `nango.batchSave(...)`. Avoid manual `while (true)` loops when `cursor`, `link`, or `offset` pagination fits.
+- Prefer `batchDelete()` when the provider returns deletions, tombstones, or delete webhooks.
+- Use full refresh only if the provider cannot return changes, deletions, or resume state, or if the dataset is tiny.
+- For full refresh, cite the exact provider limitation from docs or payloads. "It is easier" is not enough.
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch/save.
+- Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
+- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes the full window.
 
 ### Conventions
 
-- Prefer explicit parameter names (`user_id`, `channel_id`, `team_id`).
+- Match field casing to the external API. Passthrough fields keep provider casing; non-passthrough fields should use the majority casing of that API.
+- Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
-- Avoid `any`; use inline types when mapping responses.
+- Avoid `any`; use inline mapping types.
 - Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input/params.
-- Add an API doc link comment above each provider API call.
-- Standardize list actions on `cursor`/`next_cursor`.
-- For optional outputs, return `null` only when the output schema models `null`.
-- Use `nango.zodValidateInput()` when you need custom input validation/logging; otherwise rely on schemas + `nango dryrun --validate`.
-- Zod: `z.object()` strips unknown keys by default. For provider payload pass-through use `z.object({}).passthrough()`, `z.record(z.unknown())`, or `z.unknown()` with minimal refinements.
+- List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
+- Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas + `nango dryrun --validate`.
 
-### Parameter Naming Rules
+### Schema Semantics
 
-- IDs: suffix with _id (user_id, channel_id)
-- Names: suffix with _name (channel_name)
-- Emails: suffix with _email (user_email)
-- URLs: suffix with _url (callback_url)
-- Timestamps: use *_at or *_time (created_at, scheduled_time)
+- Default non-required inputs to `.optional()`.
+- Use `.nullable()` only when `null` has meaning, usually clear-on-update; add `.optional()` when callers may omit the field too.
+- Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.
+- Final action outputs and normalized sync models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
+- Default generated schemas to `.optional()` for non-required inputs and normalized outputs; widen only when the upstream contract justifies it.
+- Prefer `.nullable()` over `z.union([z.null(), T])` or `z.union([T, z.null()])`.
+- Return `null` only when the output schema allows it.
+- `z.object()` strips unknown keys by default. For provider pass-through use `z.object({}).passthrough()`, `z.record(z.unknown())`, or `z.unknown()` with minimal refinements.
+
+### Field Naming and Casing Rules
+
+- Use explicit suffixes in the API's majority casing: IDs (`user_id`, `userId`), names (`channel_name`, `channelName`), emails (`user_email`, `userEmail`), URLs (`callback_url`, `callbackUrl`), and timestamps (`created_at`, `createdAt`).
 
 Mapping example (API expects a different parameter name):
 
 ```typescript
 const InputSchema = z.object({
-    user_id: z.string()
+    userId: z.string()
 });
 
 const config: ProxyConfiguration = {
     endpoint: 'users.info',
     params: {
-        user: input.user_id
+        user: input.userId
     },
     retries: 3
 };
 ```
+
+If the API is snake_case, use `user_id` instead. The goal is API consistency.

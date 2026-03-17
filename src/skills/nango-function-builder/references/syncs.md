@@ -2,6 +2,7 @@
 
 ## Contents
 - Required planning output
+- Schema and casing rules
 - Base template
 - Pattern 1: `updated_at` / `modified_since`
 - Pattern 2: changed-records feed with a cursor
@@ -22,7 +23,30 @@ Before writing a sync, state:
 - delete strategy
 - if full refresh is required, the exact provider limitation blocking checkpoints
 
-Webhook note: `onWebhook` handlers usually do not checkpoint. If the sync also has a polling `exec`, still choose one of the checkpoint patterns below for that polling path.
+Webhook note: `onWebhook` handlers usually do not checkpoint. If the sync also polls, still choose a checkpoint pattern for `exec`.
+
+## Schema and casing rules
+
+- Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.
+- Normalized models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
+- Passthrough fields keep provider casing. Derived fields should follow the majority casing of that API.
+- Prefer `.nullable()` over `z.union([z.null(), T])` or `z.union([T, z.null()])`.
+
+```typescript
+const ProviderRecordSchema = z.object({
+    id: z.string(),
+    name: z.string().nullable(),
+    updated_at: z.string(),
+    archived_at: z.string().optional()
+});
+
+const RecordSchema = z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    updated_at: z.string(),
+    archived_at: z.string().optional()
+});
+```
 
 ## Base template
 
@@ -32,7 +56,7 @@ import { z } from 'zod';
 
 const RecordSchema = z.object({
     id: z.string(),
-    name: z.union([z.string(), z.null()]),
+    name: z.string().optional(),
     updated_at: z.string()
 });
 
@@ -91,9 +115,9 @@ const sync = createSync({
         };
 
         for await (const page of nango.paginate(proxyConfig)) {
-            const contacts = page.map((record: { id: string; name?: string; updated_at: string }) => ({
+            const contacts = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
                 id: record.id,
-                name: record.name ?? null,
+                ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
@@ -143,7 +167,7 @@ const CheckpointSchema = z.object({
 
 type Change = {
     id: string;
-    name?: string;
+    name?: string | null;
     updated_at?: string;
     deleted_at?: string;
 };
@@ -159,23 +183,31 @@ const sync = createSync({
         const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
         let cursor = checkpoint?.cursor;
 
-        while (true) {
-            const response = await nango.get({
-                // https://api-docs-url
-                endpoint: '/v1/contacts/changes',
-                params: {
-                    ...(cursor && { cursor })
-                },
-                retries: 3
-            });
+        const proxyConfig = {
+            // https://api-docs-url
+            endpoint: '/v1/contacts/changes',
+            params: {
+                ...(cursor && { cursor })
+            },
+            paginate: {
+                type: 'cursor',
+                cursor_name_in_request: 'cursor',
+                cursor_path_in_response: 'next_cursor',
+                response_path: 'items',
+                on_page: async ({ nextPageParam, response }) => {
+                    cursor = (response.data.cursor as string | undefined) ?? (typeof nextPageParam === 'string' ? nextPageParam : undefined);
+                }
+            },
+            retries: 3
+        };
 
-            const changes = response.data.items as Change[];
+        for await (const changes of nango.paginate<Change>(proxyConfig)) {
 
             const upserts = changes
                 .filter((change) => !change.deleted_at)
                 .map((change) => ({
                     id: change.id,
-                    name: change.name ?? null,
+                    ...(change.name != null && { name: change.name }),
                     updated_at: change.updated_at ?? new Date().toISOString()
                 }));
 
@@ -191,16 +223,15 @@ const sync = createSync({
                 await nango.batchDelete(deletions, 'Contact');
             }
 
-            cursor = response.data.next_cursor;
-            await nango.saveCheckpoint({ cursor });
-
-            if (!cursor) {
-                break;
+            if (cursor !== undefined) {
+                await nango.saveCheckpoint({ cursor });
             }
         }
     }
 });
 ```
+
+If the provider returns a dedicated resume token or high-water mark instead of reusing `next_cursor`, save that field instead.
 
 ## Pattern 3: `since_id` / sequence checkpoint
 
@@ -233,9 +264,9 @@ const sync = createSync({
         };
 
         for await (const page of nango.paginate(proxyConfig)) {
-            const invoices = page.map((record: { id: string; name?: string; updated_at: string }) => ({
+            const invoices = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
                 id: record.id,
-                name: record.name ?? null,
+                ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
@@ -274,44 +305,51 @@ const sync = createSync({
         let updatedAfter = checkpoint?.updated_after;
         let pageToken = checkpoint?.page_token;
 
-        while (true) {
-            const response = await nango.get({
-                // https://api-docs-url
-                endpoint: '/v1/tasks',
-                params: {
-                    sort: 'updated_at:asc',
-                    ...(updatedAfter && { updated_after: updatedAfter }),
-                    ...(pageToken && { page_token: pageToken })
-                },
-                retries: 3
-            });
+        const proxyConfig = {
+            // https://api-docs-url
+            endpoint: '/v1/tasks',
+            params: {
+                sort: 'updated_at:asc',
+                ...(updatedAfter && { updated_after: updatedAfter }),
+                ...(pageToken && { page_token: pageToken })
+            },
+            paginate: {
+                type: 'cursor',
+                cursor_name_in_request: 'page_token',
+                cursor_path_in_response: 'next_page_token',
+                response_path: 'items',
+                limit_name_in_request: 'limit',
+                limit: 100,
+                on_page: async ({ nextPageParam }) => {
+                    pageToken = typeof nextPageParam === 'string' ? nextPageParam : undefined;
+                }
+            },
+            retries: 3
+        };
 
-            const tasks = response.data.items.map((record: { id: string; name?: string; updated_at: string }) => ({
+        for await (const page of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
+            const tasks = page.map((record) => ({
                 id: record.id,
-                name: record.name ?? null,
+                ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
             if (tasks.length === 0) {
-                break;
+                continue;
             }
 
             await nango.batchSave(tasks, 'Task');
 
-            const nextPageToken = response.data.next_page_token as string | undefined;
-            if (nextPageToken) {
+            if (pageToken) {
                 await nango.saveCheckpoint({
                     ...(updatedAfter && { updated_after: updatedAfter }),
-                    page_token: nextPageToken
+                    page_token: pageToken
                 });
-                pageToken = nextPageToken;
                 continue;
             }
 
             updatedAfter = tasks[tasks.length - 1].updated_at;
-            pageToken = undefined;
             await nango.saveCheckpoint({ updated_after: updatedAfter });
-            break;
         }
     }
 });
@@ -338,36 +376,53 @@ const sync = createSync({
 
     exec: async (nango) => {
         const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
-        const updatedAfter = checkpoint?.updated_after;
-        let page = checkpoint?.page ?? 1;
+        let updatedAfter = checkpoint?.updated_after;
+        let page: number | undefined = checkpoint?.page ?? 1;
+        let lastProcessedUpdatedAt: string | undefined;
 
-        while (true) {
-            const response = await nango.get({
-                // https://api-docs-url
-                endpoint: '/v1/leads',
-                params: {
-                    sort: 'updated_at:asc',
-                    page,
-                    per_page: 100,
-                    ...(updatedAfter && { modified_since: updatedAfter })
-                },
-                retries: 3
-            });
+        const proxyConfig = {
+            // https://api-docs-url
+            endpoint: '/v1/leads',
+            params: {
+                sort: 'updated_at:asc',
+                ...(updatedAfter && { modified_since: updatedAfter })
+            },
+            paginate: {
+                type: 'offset',
+                offset_name_in_request: 'page',
+                offset_start_value: page ?? 1,
+                offset_calculation_method: 'per-page',
+                limit_name_in_request: 'per_page',
+                limit: 100,
+                response_path: 'items',
+                on_page: async ({ nextPageParam }) => {
+                    page = typeof nextPageParam === 'number' ? nextPageParam : undefined;
+                }
+            },
+            retries: 3
+        };
 
-            const leads = response.data.items.map((record: { id: string; name?: string; updated_at: string }) => ({
+        for await (const pageResults of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
+            const leads = pageResults.map((record) => ({
                 id: record.id,
-                name: record.name ?? null,
+                ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
             if (leads.length === 0) {
-                break;
+                if (page === undefined && lastProcessedUpdatedAt) {
+                    await nango.saveCheckpoint({
+                        updated_after: lastProcessedUpdatedAt,
+                        page: 1
+                    });
+                }
+                continue;
             }
 
             await nango.batchSave(leads, 'Lead');
+            lastProcessedUpdatedAt = leads[leads.length - 1].updated_at;
 
-            if (response.data.has_more) {
-                page += 1;
+            if (page !== undefined) {
                 await nango.saveCheckpoint({
                     ...(updatedAfter && { updated_after: updatedAfter }),
                     page
@@ -375,11 +430,11 @@ const sync = createSync({
                 continue;
             }
 
+            updatedAfter = lastProcessedUpdatedAt;
             await nango.saveCheckpoint({
-                updated_after: leads[leads.length - 1].updated_at,
+                updated_after: updatedAfter,
                 page: 1
             });
-            break;
         }
     }
 });
@@ -447,9 +502,9 @@ const sync = createSync({
         };
 
         for await (const page of nango.paginate(proxyConfig)) {
-            const records = page.map((record: { id: string; name?: string; updated_at: string }) => ({
+            const records = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
                 id: record.id,
-                name: record.name ?? null,
+                ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
