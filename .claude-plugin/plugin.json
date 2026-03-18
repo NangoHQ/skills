@@ -1,0 +1,5 @@
+{
+  "name": "nango",
+  "description": "Claude Code plugin that exposes skills for building and migrating Nango functions.",
+  "version": "1.0.0"
+}

@@ -1,5 +1,5 @@
 ---
-name: migrating-nango-deletion-detection
+name: migrate-nango-deletion-detection
 description: Migrates Nango syncs from deleteRecordsFromPreviousExecutions()/trackDeletes to trackDeletesStart/trackDeletesEnd for automated deletion detection (including checkpoint-based full refresh). Use when updating existing createSync code.
 ---
 
