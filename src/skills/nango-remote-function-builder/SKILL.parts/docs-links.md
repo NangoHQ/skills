@@ -4,5 +4,4 @@
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
 - Checkpoints: https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
-- Testing integrations (dryrun, --save, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
 - Nango HTTP API reference: https://nango.dev/docs/reference/api

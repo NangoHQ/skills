@@ -4,11 +4,9 @@ description: Sets up or repairs a Nango integration for a given provider. Lists 
 ---
 
 # Nango Integration Setup
-
 Find, create, or repair a Nango integration for a given provider.
 
 ## When to use
-
 - User needs a specific integration (e.g. "set up HubSpot in Nango", "I need a Slack integration")
 - An integration is broken or has missing / incorrect credentials
 - User wants to update credentials or OAuth scopes on an existing integration
@@ -22,7 +20,6 @@ All Nango API calls require a Bearer token and a base URL.
 **Base URL:** Check `NANGO_BASE_URL` in the environment. If unset, default to `https://api.nango.dev`.
 
 Use on every request:
-
 ```
 Authorization: Bearer <secret_key>
 Content-Type: application/json
@@ -31,18 +28,15 @@ Content-Type: application/json
 ## Workflow
 
 ### Step 1 — Identify the provider
-
 - If the user provided a provider name (e.g. `hubspot`, `slack`, `linear`), use it.
 - If not, ask: "Which provider do you need an integration for?"
 
 ### Step 2 — Look up the provider
-
 - `GET {base_url}/providers/{provider}`
 - If 404: tell the user the provider name is invalid and ask them to correct it. Retry.
 - On success: extract `auth_mode`, `display_name`, and `connection_configuration`.
 
 ### Step 3 — Check for existing integrations
-
 - `GET {base_url}/integrations`
 - Filter `data[]` where `provider === <provider>`.
 - **If 1 or more found:**
@@ -53,24 +47,20 @@ Content-Type: application/json
 - **If none found:** continue to Step 4.
 
 ### Step 4 — Confirm creation
-
 - Ask: "No existing integration found for {display_name}. Would you like to create one?"
 - If no: stop. Tell the user they can create one manually in the Nango dashboard.
 - If yes: continue to Step 5.
 
 ### Step 5 — Collect credentials
-
 - Follow the **Credential Collection** section to determine which fields to collect.
 - Collect all required fields before proceeding.
 
 ### Step 6 — Confirm unique_key
-
 - Suggest `unique_key` = `{provider}` (e.g. `hubspot`).
 - If the user mentions they need multiple integrations for the same provider, suggest `{provider}-{env}` (e.g. `hubspot-prod`).
 - Ask the user to confirm or override the suggested unique_key.
 
 ### Step 7 — Create the integration
-
 - Follow the **Create Integration** section.
 
 ## Provider Lookup
@@ -82,7 +72,6 @@ GET {base_url}/providers/{provider}
 ```
 
 Extract from the response:
-
 - `auth_mode`: determines which credential fields are required
 - `display_name`: use in prompts to the user
 - `connection_configuration`: additional required setup fields beyond the standard auth credentials
@@ -95,19 +84,18 @@ If the provider is not found (404), tell the user and ask for the correct provid
 
 Use `auth_mode` from the provider response to determine which credential fields to collect:
 
-| auth_mode                              | Required credential fields                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------- |
-| `OAUTH2`, `OAUTH1`, `OAUTH2_CC`, `TBA` | `client_id`, `client_secret`                                                |
-| `APP`                                  | `app_id`, `app_link`, `private_key` (RSA PEM)                               |
-| `CUSTOM`                               | `client_id`, `client_secret`, `app_id`, `app_link`, `private_key`           |
-| `BASIC`                                | credentials are set at the connection level — skip for integration creation |
-| `API_KEY`                              | credentials are set at the connection level — skip for integration creation |
-| `NONE`                                 | no credentials needed                                                       |
+| auth_mode | Required credential fields |
+|---|---|
+| `OAUTH2`, `OAUTH1`, `OAUTH2_CC`, `TBA` | `client_id`, `client_secret` |
+| `APP` | `app_id`, `app_link`, `private_key` (RSA PEM) |
+| `CUSTOM` | `client_id`, `client_secret`, `app_id`, `app_link`, `private_key` |
+| `BASIC` | credentials are set at the connection level — skip for integration creation |
+| `API_KEY` | credentials are set at the connection level — skip for integration creation |
+| `NONE` | no credentials needed |
 
 For `auth_mode` values not in this table, inspect `connection_configuration` (see below) and collect those fields. Do not guess — ask only what the provider response specifies.
 
 Optional fields (collect only if the user wants to configure them):
-
 - OAUTH2 / OAUTH1 / TBA: `scopes` (comma-separated list)
 - OAUTH2 / OAUTH1 / TBA: `webhook_secret`
 
@@ -116,7 +104,6 @@ Optional fields (collect only if the user wants to configure them):
 After determining auth_mode credentials, check the `connection_configuration` array in the provider response. This array describes additional provider-specific setup parameters (e.g. `subdomain`, `app_handle`, `organization_id`, `instance_url`).
 
 For each object in `connection_configuration`:
-
 1. Read its `name` (the parameter key) and any `description`, `title`, or `prefix` fields.
 2. Ask the user for the value if it has not already been collected.
 3. Include these values in the request body alongside the credentials.
@@ -180,7 +167,6 @@ Content-Type: application/json
 Omit `credentials` for `API_KEY` and `BASIC` auth modes.
 
 On **200**: the integration was created. Show the user:
-
 - `unique_key` — they will need this for Nango connections and function calls
 - `provider`
 - `created_at`
@@ -194,20 +180,17 @@ On **401**: the secret key is invalid or expired. Ask the user to re-provide `NA
 Use this flow when the user reports that an existing integration is broken, has missing / incorrect credentials, or needs its OAuth scopes updated.
 
 ### Step 1 — Identify the integration
-
 - Ask for the `unique_key` of the broken integration if not already known.
 - `GET {base_url}/integrations/{uniqueKey}?include=credentials`
 - On 404: the integration does not exist. Offer to create it by starting from Step 4 of the main Workflow.
 
 ### Step 2 — Identify gaps
-
 - Extract the current `credentials` object from the response.
 - Look up the provider with `GET {base_url}/providers/{provider}` to get `auth_mode` and `connection_configuration`.
 - Compare current credentials against the required fields for that `auth_mode` (see Credential Collection).
 - Show the user which credential fields are currently set (do not reveal values) and which are missing.
 
 ### Step 3 — Collect corrections
-
 - Prompt the user for each missing field.
 - If the user says a field is incorrect, ask for the corrected value.
 - If scopes need to be updated: use the scopes already known from context (e.g. required by a sync or action being built). If scopes are not known from context, ask the user for the new scope string (comma-separated). Include `scopes` in the credentials object alongside the other credential fields.
@@ -236,7 +219,6 @@ On **400 / 404**: surface the error body. Ask the user to verify the `unique_key
 ## Checklist
 
 Before finishing:
-
 - [ ] Provider validated with `GET /providers/{provider}` — no 404
 - [ ] Existing integrations checked before offering to create a new one
 - [ ] Credentials collected match the provider's `auth_mode` and `connection_configuration`

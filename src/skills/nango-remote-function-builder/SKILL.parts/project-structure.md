@@ -1,4 +1,4 @@
-## Project Structure and Naming
+## Remote Project Structure and Naming
 
 ```
 ./
@@ -19,8 +19,6 @@
 - Sync files: kebab-case (many teams use a `fetch-` prefix, but it's optional)
 - One function per file (action or sync)
 - All actions and syncs must be imported in index.ts
-
-### Register scripts in `index.ts` (required)
 
 Use side-effect imports only (no default/named imports). Include the `.js` extension.
 

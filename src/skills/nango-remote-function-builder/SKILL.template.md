@@ -6,7 +6,7 @@
 
 <!-- include: ./SKILL.parts/sync-strategy-gate.md -->
 
-<!-- include: ./SKILL.parts/action-vs-sync.md -->
+<!-- include: ./SKILL.parts/choose-path.md -->
 
 <!-- include: ./SKILL.parts/workflow.md -->
 
@@ -16,16 +16,14 @@
 
 <!-- include: ./SKILL.parts/project-structure.md -->
 
-<!-- include: ./SKILL.parts/non-negotiable-rules.md -->
+<!-- include: ./SKILL.parts/rules.md -->
 
-<!-- include: ./SKILL.parts/dryrun-and-tests.md -->
+<!-- include: ./SKILL.parts/references-section.md -->
 
-<!-- include: ./SKILL.parts/references.md -->
-
-<!-- include: ./SKILL.parts/links.md -->
+<!-- include: ./SKILL.parts/docs-links.md -->
 
 <!-- include: ./SKILL.parts/deploy.md -->
 
-<!-- include: ./SKILL.parts/api-docs.md -->
+<!-- include: ./SKILL.parts/api-docs-fallback.md -->
 
-<!-- include: ./SKILL.parts/final-checklists.md -->
+<!-- include: ./SKILL.parts/checklist.md -->
