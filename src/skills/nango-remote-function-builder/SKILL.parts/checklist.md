@@ -6,8 +6,8 @@ Action:
 - [ ] `createAction()` includes endpoint, input, output, and scopes when required
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
-- [ ] Deploy succeeds by using the `ts-deploy` endpoint
-- [ ] Run succeeds and returns the expected result using the `ts-run` endpoint
+- [ ] Deploy succeeds by using the `sf-deploy` endpoint
+- [ ] Run succeeds and returns the expected result using the `sf-run` endpoint
 
 Sync:
 - [ ] Nango root verified
@@ -21,5 +21,5 @@ Sync:
 - [ ] List sync logic uses `nango.paginate()` plus `nango.batchSave()` unless the API shape requires a manual loop
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
-- [ ] Deploy succeeds by using the `ts-deploy` endpoint
+- [ ] Deploy succeeds by using the `sf-deploy` endpoint
 - [ ] Run succeeds and returns the expected result using the `ts-run` endpoint

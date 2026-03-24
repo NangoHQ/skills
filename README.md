@@ -3,7 +3,7 @@
 This repository contains reusable skills for building Nango functions. It can be referenced by `skills.sh` or loaded directly as a Claude Code plugin.
 
 Included skills:
-- `nango-function-builder` (`skills/nango-function-builder/SKILL.md`)
+- `nango-remote-function-builder` (`skills/nango-remote-function-builder/SKILL.md`)
 - `migrate-nango-deletion-detection` (`skills/migrate-nango-deletion-detection/SKILL.md`)
 
 ## Claude Code plugin

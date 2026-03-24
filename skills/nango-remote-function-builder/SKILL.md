@@ -4,7 +4,7 @@ description: Builds Nango Functions using Nango's remote build API with checkpoi
 ---
 
 # Nango Remote Function Builder
-Builds and deploys a Nango functions (actions and syncs) remotely with repeatable patterns and validation steps. Do not use the Nango CLI ever.
+Builds and deploys a Nango functions (actions and syncs) remotely with repeatable patterns and validation steps. We use the Nango API to achieve this. Check `references/api.md` for how to do this.
 
 ## When to use
 - User wants to build or modify a Nango function
@@ -45,14 +45,16 @@ Sync:
 - Read `references/syncs.md` before writing code
 
 ## Workflow (recommended)
-1. Decide whether this is an action or a sync.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
-3. For syncs, inspect the provider docs or sample payloads for a checkpointable path first (`updated_at`, `modified_since`, changed-records endpoints, deleted-record endpoints, cursors, page tokens, offset/page, `since_id`, or webhooks), decide whether it returns the full dataset or only changed rows, and complete the Sync Strategy Gate before writing code.
-4. Gather required inputs and external values. If you need connection details, credentials, or discovery calls, use the Nango HTTP API (Connections/Proxy; auth with the Nango secret key). Do not invent Nango CLI token/connection commands.
-5. Always assume this will be a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
-6. You shouldn't use the local file system, we are creating the function remotely. Create or update the function by using the Nango Remote build API. This will require to keep the sync/action to a single file, as the API only accepts 1 file. Use the create 
-7. Once the function is deployed, run it.
-8. Report to the user the result, if something went wrong on either the build or the run, fix it and retry.
+1. Check if an integration exists or if it needs to be created or updated
+2. Check if a connection exists
+3. Decide whether this is an action or a sync.
+4. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
+5. For syncs, inspect the provider docs or sample payloads for a checkpointable path first (`updated_at`, `modified_since`, changed-records endpoints, deleted-record endpoints, cursors, page tokens, offset/page, `since_id`, or webhooks), decide whether it returns the full dataset or only changed rows, and complete the Sync Strategy Gate before writing code.
+6. Gather required inputs and external values. If you need connection details, credentials, or discovery calls, use the Nango HTTP API (Connections/Proxy; auth with the Nango secret key). Do not invent Nango CLI token/connection commands.
+7. Always assume this will be a Zero YAML TypeScript project (no `nango.yaml`) and you are in the Nango root (`.nango/` exists).
+8. You shouldn't use the local file system, we are creating the function remotely. Create or update the function by using the Nango Remote build API. This will require to keep the sync/action to a single file, as the API only accepts 1 file. Use the create 
+9. Once the function is deployed, run it.
+10. Report to the user the result, if something went wrong on either the build or the run, fix it and retry.
 
 ## Required Inputs (Ask User if Missing)
 
@@ -207,8 +209,8 @@ Action:
 - [ ] `createAction()` includes endpoint, input, output, and scopes when required
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
-- [ ] Deploy succeeds by using the `ts-deploy` endpoint
-- [ ] Run succeeds and returns the expected result using the `ts-run` endpoint
+- [ ] Deploy succeeds by using the `sf-deploy` endpoint
+- [ ] Run succeeds and returns the expected result using the `sf-run` endpoint
 
 Sync:
 - [ ] Nango root verified
@@ -222,5 +224,5 @@ Sync:
 - [ ] List sync logic uses `nango.paginate()` plus `nango.batchSave()` unless the API shape requires a manual loop
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
-- [ ] Deploy succeeds by using the `ts-deploy` endpoint
+- [ ] Deploy succeeds by using the `sf-deploy` endpoint
 - [ ] Run succeeds and returns the expected result using the `ts-run` endpoint
