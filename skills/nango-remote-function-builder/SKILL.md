@@ -4,7 +4,7 @@ description: Builds Nango Functions using Nango's remote build API with checkpoi
 ---
 
 # Nango Remote Function Builder
-Builds and deploys a Nango functions (actions and syncs) remotely with repeatable patterns and validation steps.
+Builds and deploys a Nango functions (actions and syncs) remotely with repeatable patterns and validation steps. Do not use the Nango CLI ever.
 
 ## When to use
 - User wants to build or modify a Nango function
