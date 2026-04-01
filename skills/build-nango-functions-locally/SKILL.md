@@ -1,10 +1,10 @@
 ---
-name: nango-function-builder
-description: Builds Nango Functions (TypeScript createAction/createSync) with checkpoint-first sync patterns, action and sync references, project/root checks, deletion strategies, and a docs-aligned dryrun/test workflow. Use when creating or updating Nango actions or syncs.
+name: build-nango-functions-locally
+description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy. Use when creating or updating Nango actions or syncs locally.
 ---
 
-# Nango Function Builder
-Build deployable Nango functions (actions and syncs) with repeatable patterns and validation steps.
+# Build Nango Functions Locally
+Build deployable Nango actions and syncs in a checked-out Nango project with the local CLI validation and test workflow.
 
 ## When to use
 - User wants to build or modify a Nango function
@@ -44,24 +44,12 @@ Sync:
 - Complete the Sync Strategy Gate first
 - Read `references/syncs.md` before writing code
 
-## Workflow (recommended)
-1. Decide whether this is an action or a sync.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
-3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
-4. Gather required inputs and external values. For connection lookup, credentials, or discovery, use the Nango HTTP API.
-5. Confirm this is a Zero YAML TypeScript project (`no nango.yaml`) and that you are in the Nango root (`.nango/` exists).
-6. Create or update the function under `{integrationId}/actions/` or `{integrationId}/syncs/`, apply the schema and casing rules here, then register it in `index.ts`.
-7. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm`.
-8. If validation cannot pass, stop and report the missing external state or inputs.
-9. After validation passes, run `nango dryrun ... --save`, then `nango generate:tests`, then `npm test`.
-10. Deploy with `nango deploy dev` only when requested.
-
 ## Required Inputs (Ask User if Missing)
 
 Always:
 - Integration ID (provider name)
-- Connection ID (for dryrun)
-- Script name (kebab-case)
+- Connection ID (for validation or dryrun)
+- Script/function name (kebab-case)
 - API reference URL or sample response
 
 Action-specific:
@@ -69,7 +57,7 @@ Action-specific:
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON for dryrun `--input` and mocks (required; use `{}` for no-input actions)
+- Test input JSON for validation/dryrun (required; use `{}` for no-input actions)
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -82,80 +70,13 @@ Sync-specific:
 
 If any required external values are missing, ask a targeted question after checking the repo and provider docs. For syncs, choose a checkpoint plus deletion strategy whenever the provider supports one. If you cannot find a viable checkpoint strategy, state exactly why before writing a full refresh.
 
-## Preconditions (Do Before Writing Code)
-
-### Confirm TypeScript Project (No nango.yaml)
-
-This skill only supports TypeScript projects using createAction()/createSync().
-
-```bash
-ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"
-```
-
-If you see YAML PROJECT DETECTED:
-- Stop immediately.
-- Tell the user to upgrade to the TypeScript format first.
-- Do not attempt to mix YAML and TypeScript.
-
-Reference: https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml
-
-### Verify Nango Project Root
-
-Do not create files until you confirm the Nango root:
-
-```bash
-ls -la .nango/ 2>/dev/null && pwd && echo "IN NANGO PROJECT ROOT" || echo "NOT in Nango root"
-```
-
-If you see NOT in Nango root:
-- cd into the directory that contains .nango/
-- Re-run the check
-- Do not use absolute paths as a workaround
-
-All file paths must be relative to the Nango root. Creating files with extra prefixes while already in the Nango root will create nested directories that break the build.
-
-## Project Structure and Naming
-
-```
-./
-|-- .nango/
-|-- index.ts
-|-- hubspot/
-|   |-- actions/
-|   |   `-- create-contact.ts
-|   `-- syncs/
-|       `-- fetch-contacts.ts
-`-- slack/
-    `-- actions/
-        `-- post-message.ts
-```
-
-- Provider directories: lowercase (hubspot, slack)
-- Action files: kebab-case (create-contact.ts)
-- Sync files: kebab-case (many teams use a `fetch-` prefix, but it's optional)
-- One function per file (action or sync)
-- All actions and syncs must be imported in index.ts
-
-### Register scripts in `index.ts` (required)
-
-Use side-effect imports only (no default/named imports). Include the `.js` extension.
-
-```typescript
-// index.ts
-import './github/actions/get-top-contributor.js';
-import './github/syncs/fetch-issues.js';
-```
-
-Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
-
 ## Non-Negotiable Rules
 
 ### Shared platform constraints
 
-- Zero YAML TypeScript projects use `createAction()` / `createSync()`, not `nango.yaml`.
-- Register every action/sync in `index.ts` with side-effect imports (`import './<path>.js'`).
-- You cannot add arbitrary packages. Use relative imports; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
-- Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token/connection commands.
+- Nango functions use `createAction()` / `createSync()`.
+- You cannot add arbitrary packages. Use relative imports only when the chosen workflow supports them; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
+- Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
 - HTTP retries default to `0`; set `retries` deliberately, especially for writes.
@@ -180,9 +101,9 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input/params.
+- Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input or params.
 - List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
-- Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas + `nango dryrun --validate`.
+- Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
 ### Schema Semantics
 
@@ -217,28 +138,6 @@ const config: ProxyConfiguration = {
 
 If the API is snake_case, use `user_id` instead. The goal is API consistency.
 
-## Dryrun, Mocks, and Tests (required)
-
-Required loop (do not skip steps):
-1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
-2. Actions: always pass `--input '{...}'` (use `--input '{}'` for no-input actions).
-3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
-4. If validation cannot pass, stop and state the missing external state or inputs required.
-5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
-6. Run `nango generate:tests`, then `npm test`.
-
-Hard rules:
-- Treat `<script-name>.test.json` as generated output. Never create, edit, rename, or move it (including recorded `hash` fields).
-- If mocks are wrong or stale, fix the code and re-record with `--save`.
-- Do not hard-code error payloads in `*.test.json`; use a Vitest test with `vi.spyOn(...)` for 404/401/429/timeout cases.
-- Connection ID is the second positional argument; do not use `--connection-id`.
-- Use `--integration-id <integration-id>` when script names overlap across integrations.
-- Prefer `--checkpoint` for new incremental syncs; `--lastSyncDate` is a legacy pattern.
-- If `nango` is not on PATH, use `npx nango ...`.
-- CLI upgrade prompts can block automation; set `NANGO_CLI_UPGRADE_MODE=ignore` if needed.
-
-Reference: https://nango.dev/docs/implementation-guides/platform/functions/testing
-
 ## References
 
 - Action patterns, CRUD examples, metadata usage, and ActionError examples: `references/actions.md`
@@ -250,14 +149,121 @@ Reference: https://nango.dev/docs/implementation-guides/platform/functions/testi
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
 - Checkpoints: https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
-- Testing integrations (dryrun, --save, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
+- Testing integrations (dryrun, `--save`, Vitest): https://nango.dev/docs/implementation-guides/platform/functions/testing
 - Nango HTTP API reference: https://nango.dev/docs/reference/api
+
+## When API Docs Do Not Render
+
+If web fetching returns incomplete docs (JS-rendered):
+- Ask the user for a sample response
+- Use existing Nango actions or syncs in the workspace as a pattern when they exist
+- Use the skill-specific validation or dryrun workflow until it passes
+
+## Workflow (required)
+1. Decide whether this is an action or a sync.
+2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
+3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
+4. Gather required inputs and external values. For connection lookup, credentials, or discovery, use the Nango HTTP API.
+5. Confirm this is a Zero YAML TypeScript project (`no nango.yaml`) and that you are in the Nango root (`.nango/` exists).
+6. Create or update the function under `{integrationId}/actions/` or `{integrationId}/syncs/`, apply the shared schema and casing rules, then register it in `index.ts`.
+7. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm`.
+8. If validation cannot pass, stop and report the missing external state or inputs.
+9. After validation passes, run `nango dryrun ... --save`, then `nango generate:tests`, then `npm test`.
+10. Deploy with `nango deploy dev` only when requested.
+
+## Preconditions (Do Before Writing Code)
+
+### Confirm TypeScript Project (No `nango.yaml`)
+
+This skill only supports TypeScript projects using `createAction()` / `createSync()`.
+
+```bash
+ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"
+```
+
+If you see `YAML PROJECT DETECTED`:
+- Stop immediately.
+- Tell the user to upgrade to the TypeScript format first.
+- Do not attempt to mix YAML and TypeScript.
+
+Reference: https://nango.dev/docs/implementation-guides/platform/migrations/migrate-to-zero-yaml
+
+### Verify Nango Project Root
+
+Do not create files until you confirm the Nango root:
+
+```bash
+ls -la .nango/ 2>/dev/null && pwd && echo "IN NANGO PROJECT ROOT" || echo "NOT in Nango root"
+```
+
+If you see `NOT in Nango root`:
+- `cd` into the directory that contains `.nango/`
+- Re-run the check
+- Do not use absolute paths as a workaround
+
+All file paths must be relative to the Nango root. Creating files with extra prefixes while already in the Nango root will create nested directories that break the build.
+
+## Project Structure and Naming
+
+```text
+./
+|-- .nango/
+|-- index.ts
+|-- hubspot/
+|   |-- actions/
+|   |   `-- create-contact.ts
+|   `-- syncs/
+|       `-- fetch-contacts.ts
+`-- slack/
+    `-- actions/
+        `-- post-message.ts
+```
+
+- Provider directories: lowercase (`hubspot`, `slack`)
+- Action files: kebab-case (`create-contact.ts`)
+- Sync files: kebab-case (many teams use a `fetch-` prefix, but it is optional)
+- One function per file
+- All actions and syncs must be imported in `index.ts`
+
+### Register scripts in `index.ts` (required)
+
+Use side-effect imports only. Include the `.js` extension.
+
+```typescript
+// index.ts
+import './github/actions/get-top-contributor.js';
+import './github/syncs/fetch-issues.js';
+```
+
+Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
+
+## Dryrun, Mocks, and Tests (required)
+
+Required loop:
+1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
+2. Actions: always pass `--input '{...}'` (use `--input '{}'` for no-input actions).
+3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
+4. If validation cannot pass, stop and state the missing external state or inputs required.
+5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
+6. Run `nango generate:tests`, then `npm test`.
+
+Hard rules:
+- Treat `<script-name>.test.json` as generated output. Never create, edit, rename, or move it.
+- If mocks are wrong or stale, fix the code and re-record with `--save`.
+- Do not hard-code error payloads in `*.test.json`; use a Vitest test with `vi.spyOn(...)` for 404, 401, 429, or timeout cases.
+- Connection ID is the second positional argument; do not use `--connection-id`.
+- Use `--integration-id <integration-id>` when script names overlap across integrations.
+- Prefer `--checkpoint` for new incremental syncs; `--lastSyncDate` is a legacy pattern.
+- If `nango` is not on `PATH`, use `npx nango ...`.
+- CLI upgrade prompts can block automation; set `NANGO_CLI_UPGRADE_MODE=ignore` if needed.
+
+Reference: https://nango.dev/docs/implementation-guides/platform/functions/testing
 
 ## Deploy (Optional)
 
 Deploy functions to an environment in your Nango account:
 
-```
+```bash
 nango deploy dev
 
 # Deploy only one function
@@ -267,24 +273,17 @@ nango deploy --sync <sync-name> dev
 
 Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 
-## When API Docs Do Not Render
-
-If web fetching returns incomplete docs (JS-rendered):
-- Ask the user for a sample response
-- Use existing actions/syncs in the repo as a pattern
-- Run dryrun with `--validate` until it passes, then run dryrun with `--save`, then `nango generate:tests`
-
 ## Final Checklists
 
 Action:
 - [ ] Nango root verified
 - [ ] `references/actions.md` was used for the action pattern
-- [ ] Schemas and types are clear, and missing-value rules match the provider vs normalized contract
+- [ ] Schemas and types are clear, and missing-value rules match the provider versus normalized contract
 - [ ] `createAction()` includes endpoint, input, output, and scopes when required
 - [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
-- [ ] Registered in index.ts
+- [ ] Registered in `index.ts`
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm --input '{...}'`
 - [ ] `<action-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
 - [ ] `nango generate:tests` ran and `npm test` passes
@@ -298,11 +297,11 @@ Sync:
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
 - [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
-- [ ] Raw provider schemas model omitted vs `null` correctly, and fields use passthrough casing or the API's majority casing
+- [ ] Raw provider schemas model omitted versus `null` correctly, and fields use passthrough casing or the API's majority casing
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
-- [ ] Registered in index.ts
+- [ ] Registered in `index.ts`
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`
 - [ ] `<sync-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
 - [ ] `nango generate:tests` ran and `npm test` passes

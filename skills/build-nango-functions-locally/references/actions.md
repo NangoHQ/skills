@@ -7,7 +7,7 @@
 - CRUD patterns
 - List actions
 - ActionError
-- Dryrun examples
+- Validation and execution
 
 ## Schema and casing rules
 
@@ -196,28 +196,6 @@ if (response.status === 429) {
 
 Do not return null-filled objects to indicate not found. Throw `ActionError` instead.
 
-## Dryrun examples
+## Validation and execution
 
-Validate an action:
-
-```bash
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
-```
-
-Validate a no-input action:
-
-```bash
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
-```
-
-Record mocks after validation passes:
-
-```bash
-nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
-```
-
-Stub metadata when needed:
-
-```bash
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}' --metadata '{"team_id":"123"}'
-```
+Validation, dryrun, mock recording, and deployment are workflow-specific. Use the active skill's workflow instructions for those steps. This shared reference only defines implementation patterns.
