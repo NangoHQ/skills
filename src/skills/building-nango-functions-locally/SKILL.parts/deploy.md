@@ -2,7 +2,7 @@
 
 Deploy functions to an environment in your Nango account:
 
-```
+```bash
 nango deploy dev
 
 # Deploy only one function

@@ -39,8 +39,31 @@ async function copyDir(srcDir, destDir) {
     return true;
 }
 
+async function readReferenceSources(skillDir) {
+    const manifestPath = path.join(skillDir, 'references.sources');
+
+    let manifest;
+    try {
+        manifest = await readFile(manifestPath, 'utf8');
+    } catch (err) {
+        if (err?.code === 'ENOENT') {
+            return [];
+        }
+
+        throw err;
+    }
+
+    return manifest
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#'))
+        .map((line) => path.resolve(skillDir, line));
+}
+
 async function buildSkill(skillName) {
-    const templatePath = path.join(srcSkillsDir, skillName, 'SKILL.template.md');
+    const skillSrcDir = path.join(srcSkillsDir, skillName);
+    const templatePath = path.join(skillSrcDir, 'SKILL.template.md');
 
     let template;
     try {
@@ -82,7 +105,13 @@ async function buildSkill(skillName) {
     const outReferencesDir = path.join(skillOutDir, 'references');
     await rm(outReferencesDir, { recursive: true, force: true });
 
-    const copiedReferences = await copyDir(path.join(srcSkillsDir, skillName, 'references'), outReferencesDir);
+    let copiedReferences = false;
+
+    for (const sourceDir of await readReferenceSources(skillSrcDir)) {
+        copiedReferences = (await copyDir(sourceDir, outReferencesDir)) || copiedReferences;
+    }
+
+    copiedReferences = (await copyDir(path.join(skillSrcDir, 'references'), outReferencesDir)) || copiedReferences;
 
     console.log(`Built: ${path.relative(repoRoot, outPath)}`);
 
@@ -98,6 +127,10 @@ let builtAny = false;
 
 for (const entry of entries) {
     if (!entry.isDirectory()) {
+        continue;
+    }
+
+    if (entry.name.startsWith('_')) {
         continue;
     }
 

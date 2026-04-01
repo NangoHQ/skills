@@ -11,7 +11,7 @@
 - Pattern 5: timestamp plus page number or offset
 - Delete strategies
 - Full refresh fallback
-- Dryrun examples
+- Validation and execution
 - Invalid patterns
 
 ## Required planning output
@@ -518,37 +518,9 @@ const sync = createSync({
 });
 ```
 
-## Dryrun examples
+## Validation and execution
 
-Validate a sync:
-
-```bash
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
-```
-
-Validate a resumed sync with a checkpoint:
-
-```bash
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
-```
-
-Validate a cursor-based sync with a checkpoint:
-
-```bash
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"cursor":"eyJwYWdlIjoyfQ=="}'
-```
-
-Record mocks after validation passes:
-
-```bash
-nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
-```
-
-Stub metadata when needed:
-
-```bash
-nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata @fixtures/metadata.json
-```
+Validation, dryrun, mock recording, and deployment are workflow-specific. Use the active skill's workflow instructions for those steps. This shared reference only defines implementation patterns.
 
 ## Invalid patterns
 
