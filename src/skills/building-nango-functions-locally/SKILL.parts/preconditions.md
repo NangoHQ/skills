@@ -1,14 +1,14 @@
 ## Preconditions (Do Before Writing Code)
 
-### Confirm TypeScript Project (No nango.yaml)
+### Confirm TypeScript Project (No `nango.yaml`)
 
-This skill only supports TypeScript projects using createAction()/createSync().
+This skill only supports TypeScript projects using `createAction()` / `createSync()`.
 
 ```bash
 ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"
 ```
 
-If you see YAML PROJECT DETECTED:
+If you see `YAML PROJECT DETECTED`:
 - Stop immediately.
 - Tell the user to upgrade to the TypeScript format first.
 - Do not attempt to mix YAML and TypeScript.
@@ -23,8 +23,8 @@ Do not create files until you confirm the Nango root:
 ls -la .nango/ 2>/dev/null && pwd && echo "IN NANGO PROJECT ROOT" || echo "NOT in Nango root"
 ```
 
-If you see NOT in Nango root:
-- cd into the directory that contains .nango/
+If you see `NOT in Nango root`:
+- `cd` into the directory that contains `.nango/`
 - Re-run the check
 - Do not use absolute paths as a workaround
 
