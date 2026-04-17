@@ -57,6 +57,16 @@ GET <base-url>/scripts/config
 Authorization: Bearer <secret-key>
 ```
 
+## Choose integration (do this before connection)
+
+- Check if an integration for your API is setup in Nango
+- If not, set it up for the user:
+  - If the API is OAuth and has Nango provided developer credentials, ask the user to enable it manually in the dashboard.
+  - If the API is OAuth and doesn't have Nango developer credentials guide the user to get a client id & secret
+  - In all other cases, set the integration up and proceed with creating a Connect link
+
+Do not ask the user for any Connection specific parameters. Always let it enter these in the Connect link.
+
 ## Choose integration + connection (required)
 
 - Ensure the integration (provider) exists in Nango; create it via Nango HTTP API if needed.
@@ -97,7 +107,7 @@ Scopes are comma-separated (no spaces).
 
 ## Access strategy
 
-- Use **Nango proxy** for 1–2 simple provider calls.
+- Use **Nango proxy** for 1–2 simple provider calls and to explore the API.
 - Use a **Nango Action** for multi-call logic, transformations, pagination orchestration, retries/error handling, or reuse.
 
 Prefer reusing an existing deployed action (see `GET <base-url>/scripts/config`).
@@ -116,8 +126,11 @@ Content-Type: application/json
 {"action_name": "<action-name>", "input": {...}}
 ```
 
-## Docs (only if needed)
+## Docs
 
 - https://nango.dev/docs
+- https://nango.dev/docs/llms.txt
 - https://nango.dev/docs/reference/api
 - https://nango.dev/docs/spec.yaml
+
+Nango maintains a docs page for each API it supports (find it in llms.txt). This page contains a link to the external APIs reference.
