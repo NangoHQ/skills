@@ -63,6 +63,7 @@ Authorization: Bearer <secret-key>
 - If not, set it up for the user:
   - If the API is OAuth and has Nango provided developer credentials, ask the user to enable it manually in the dashboard.
   - If the API is OAuth and doesn't have Nango developer credentials guide the user to get a client id & secret
+  - If the API uses "OAuth client credentials", do not ask the user for client id & secret. Set the integration up and the user will enter them with the Connect Link.
   - In all other cases, set the integration up and proceed with creating a Connect link
 
 Do not ask the user for any Connection specific parameters. Always let it enter these in the Connect link.
