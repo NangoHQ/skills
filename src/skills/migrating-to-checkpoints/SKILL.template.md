@@ -123,14 +123,7 @@ nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --au
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-06-01T00:00:00Z"}'
 ```
 
-Use `--metadata` when the sync needs metadata, and tailor the `--checkpoint` payload to the schema. After validation passes:
-
-```bash
-nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
-nango generate:tests && npm test
-```
-
-Never hand-edit generated `*.test.json`.
+Use `--metadata` when the sync needs metadata, tailor the `--checkpoint` payload to the schema, and run the repo's existing test suite if one exists.
 
 ## Final Checklist
 
