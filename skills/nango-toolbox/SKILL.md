@@ -1,6 +1,6 @@
 ---
 name: nango-toolbox
-description: Use to access data from external APIs.
+description: Universal gateway for any third-party API or SaaS (Google Calendar, Gmail, Slack, Notion, Linear, HubSpot, etc.). TRIGGER on any request to read or modify data in an external product, even when no matching MCP tool is loaded.
 ---
 
 ## When to use
