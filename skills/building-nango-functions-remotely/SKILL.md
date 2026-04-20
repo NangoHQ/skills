@@ -174,19 +174,19 @@ If web fetching returns incomplete docs (JS-rendered):
 4. Gather required inputs and external values, including `NANGO_SECRET_KEY`, target environment, and any metadata needed for dryrun.
 5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
 6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
-7. Compile with `POST {host}/remote-functions/compile` until compilation passes.
-8. Dryrun with `POST {host}/remote-functions/dryrun` using the target connection plus `test_input`, `metadata`, or `checkpoint` as needed.
+7. Compile with `POST {host}/remote-function/compile` until compilation passes.
+8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `test_input`, `metadata`, or `checkpoint` as needed.
 9. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-10. Deploy with `POST {host}/remote-functions/deploy` only when requested.
+10. Deploy with `POST {host}/remote-function/deploy` only when requested.
 
 ## Remote API Workflow (required)
 
 Read `references/api.md` before making remote calls.
 
 Required sequence:
-1. Compile first with `/remote-functions/compile`.
-2. Dryrun second with `/remote-functions/dryrun`.
-3. Deploy last with `/remote-functions/deploy`.
+1. Compile first with `/remote-function/compile`.
+2. Dryrun second with `/remote-function/dryrun`.
+3. Deploy last with `/remote-function/deploy`.
 
 Rules:
 - These endpoints are relative. Always resolve them against the chosen `NANGO_SERVER_URL`.
@@ -206,9 +206,9 @@ Action:
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-functions/compile`
-- [ ] Dryrun succeeds with `POST /remote-functions/dryrun` and the expected action output
-- [ ] Deploy succeeds with `POST /remote-functions/deploy` when requested
+- [ ] Compile succeeds with `POST /remote-function/compile`
+- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and the expected action output
+- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
 
 Sync:
 - [ ] `references/syncs.md` was used for the sync pattern
@@ -220,6 +220,6 @@ Sync:
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] The function stays self-contained in one file unless the remote API proves multi-file support
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-functions/compile`
-- [ ] Dryrun succeeds with `POST /remote-functions/dryrun` and returns the expected change set
-- [ ] Deploy succeeds with `POST /remote-functions/deploy` when requested
+- [ ] Compile succeeds with `POST /remote-function/compile`
+- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and returns the expected change set
+- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
