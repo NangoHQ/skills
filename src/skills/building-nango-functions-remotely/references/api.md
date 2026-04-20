@@ -8,9 +8,9 @@ Resolve the base host in this order:
 3. `https://api.nango.dev`
 
 All remote function endpoints are relative to that host:
-- `/remote-functions/compile`
-- `/remote-functions/dryrun`
-- `/remote-functions/deploy`
+- `/remote-function/compile`
+- `/remote-function/dryrun`
+- `/remote-function/deploy`
 
 ## Auth
 

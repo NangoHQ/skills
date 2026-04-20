@@ -3,9 +3,9 @@
 Read `references/api.md` before making remote calls.
 
 Required sequence:
-1. Compile first with `/remote-functions/compile`.
-2. Dryrun second with `/remote-functions/dryrun`.
-3. Deploy last with `/remote-functions/deploy`.
+1. Compile first with `/remote-function/compile`.
+2. Dryrun second with `/remote-function/dryrun`.
+3. Deploy last with `/remote-function/deploy`.
 
 Rules:
 - These endpoints are relative. Always resolve them against the chosen `NANGO_SERVER_URL`.
