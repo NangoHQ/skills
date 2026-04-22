@@ -172,11 +172,11 @@ If web fetching returns incomplete docs (JS-rendered):
 1. Decide whether this is an action or a sync.
 2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
 3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
-4. Gather required inputs and external values, including `NANGO_SECRET_KEY`, target environment, and any metadata needed for dryrun.
+4. Gather required inputs and external values, including the `NANGO_SECRET_KEY` for the target environment and any metadata needed for dryrun.
 5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
 6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
 7. Compile with `POST {host}/remote-function/compile` until compilation passes.
-8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `test_input`, `metadata`, or `checkpoint` as needed.
+8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `input`, `metadata`, or `checkpoint` as needed.
 9. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
 10. Deploy with `POST {host}/remote-function/deploy` only when requested.
 
@@ -194,8 +194,9 @@ Rules:
 - Send `Authorization: Bearer <NANGO_SECRET_KEY>` and `Content-Type: application/json`.
 - Do not send query params unless the API docs or an existing caller prove they are supported.
 - Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
-- For actions, dryrun should include `test_input` and `metadata` only when needed.
+- For actions, dryrun should include `input` and `metadata` only when needed.
 - For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
+- Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result, but it does not record local mocks.
 
 ## Final Checklists
 

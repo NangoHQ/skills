@@ -34,8 +34,7 @@ Start compile and deploy payloads with:
   "integration_id": "string",
   "function_name": "string",
   "function_type": "action | sync",
-  "code": "string",
-  "environment": "string"
+  "code": "string"
 }
 ```
 
@@ -46,13 +45,73 @@ Start dryrun payloads with:
   "integration_id": "string",
   "function_name": "string",
   "function_type": "action | sync",
-  "connection_id": "string",
-  "environment": "string"
+  "code": "string",
+  "connection_id": "string"
 }
 ```
 
 Add only the fields needed by the function:
-- Actions: `test_input`, `metadata`
+- Actions: `input`, `metadata`
 - Syncs: `metadata`, `checkpoint`
+
+Remote dryrun supports the request-body equivalents of CLI `--input`, `--metadata`, `--checkpoint`, and legacy `--lastSyncDate` as `input`, `metadata`, `checkpoint`, and `last_sync_date`. It does not expose CLI `--validate` or `--save`; compile first, then dryrun, and do not expect mock files to be recorded.
+
+## Dryrun examples
+
+Use the `NANGO_SECRET_KEY` for the target environment; the environment is inferred from that key.
+
+```bash
+# Dryrun an action
+curl -sS -X POST "$NANGO_SERVER_URL/remote-function/dryrun" \
+  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integration_id": "slack",
+    "function_name": "post-message",
+    "function_type": "action",
+    "code": "...TypeScript source...",
+    "connection_id": "conn-1",
+    "input": { "channel_id": "C123", "text": "Hello" }
+  }'
+
+# Dryrun a no-input action
+curl -sS -X POST "$NANGO_SERVER_URL/remote-function/dryrun" \
+  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integration_id": "github",
+    "function_name": "get-viewer",
+    "function_type": "action",
+    "code": "...TypeScript source...",
+    "connection_id": "conn-1",
+    "input": {}
+  }'
+
+# Dryrun a sync from a checkpoint
+curl -sS -X POST "$NANGO_SERVER_URL/remote-function/dryrun" \
+  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integration_id": "salesforce",
+    "function_name": "fetch-contacts",
+    "function_type": "sync",
+    "code": "...TypeScript source...",
+    "connection_id": "conn-1",
+    "checkpoint": { "updated_after": "2024-01-15T00:00:00Z" }
+  }'
+
+# Dryrun with metadata
+curl -sS -X POST "$NANGO_SERVER_URL/remote-function/dryrun" \
+  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "integration_id": "slack",
+    "function_name": "fetch-channel-members",
+    "function_type": "sync",
+    "code": "...TypeScript source...",
+    "connection_id": "conn-1",
+    "metadata": { "team_id": "T123" }
+  }'
+```
 
 Because these endpoints are evolving, trust the server's validation errors and any existing caller code over stale examples. If the API rejects a field, remove or rename it based on the returned error instead of inventing new parameters.

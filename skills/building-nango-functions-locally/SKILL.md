@@ -247,6 +247,31 @@ Required loop:
 5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
 6. Run `nango generate:tests`, then `npm test`.
 
+Examples:
+
+```bash
+# Validate an action
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Validate a no-input action
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
+
+# Validate a sync
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
+
+# Validate a resumed sync with a checkpoint
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
+
+# Record action mocks after validation passes
+nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Record sync mocks after validation passes
+nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
+
+# Stub metadata when needed
+nango dryrun <script-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata '{"team_id":"123"}'
+```
+
 Hard rules:
 - Treat `<script-name>.test.json` as generated output. Never create, edit, rename, or move it.
 - If mocks are wrong or stale, fix the code and re-record with `--save`.
