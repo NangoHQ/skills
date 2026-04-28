@@ -126,7 +126,7 @@ const action = createAction({
 
 Recommended in most configs:
 - Add an API doc link comment above the provider call.
-- Set `retries` intentionally. `3` is common for idempotent GET/LIST calls; avoid retries for non-idempotent writes unless the API supports idempotency.
+- Set `retries` intentionally. `3` is the normal maximum for idempotent GET/LIST calls; values above `3` are strongly discouraged and need a documented reason. Avoid retries for non-idempotent writes unless the API supports idempotency.
 
 Optional input fields pattern:
 

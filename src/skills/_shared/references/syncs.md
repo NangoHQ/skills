@@ -25,6 +25,8 @@ Before writing a sync, state:
 
 Webhook note: `onWebhook` handlers usually do not checkpoint. If the sync also polls, still choose a checkpoint pattern for `exec`.
 
+Set `retries: 3` on every provider API call in syncs unless API docs or request semantics require a lower value. Do not set sync retries above `3`; sync calls often run longer and move more data, so higher values are effectively forbidden unless API docs and the workflow prove they are safe and necessary.
+
 ## Schema and casing rules
 
 - Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.

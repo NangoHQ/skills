@@ -24,6 +24,7 @@ Sync:
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] Raw provider schemas model omitted versus `null` correctly, and fields use passthrough casing or the API's majority casing
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
+- [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
 - [ ] Registered in `index.ts`

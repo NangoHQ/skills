@@ -79,7 +79,7 @@ If any required external values are missing, ask a targeted question after check
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
-- HTTP retries default to `0`; set `retries` deliberately, especially for writes.
+- HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
 
 ### Sync rules
 
@@ -324,6 +324,7 @@ Sync:
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] Raw provider schemas model omitted versus `null` correctly, and fields use passthrough casing or the API's majority casing
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
+- [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Metadata handled if required
 - [ ] Registered in `index.ts`
