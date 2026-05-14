@@ -9,6 +9,7 @@
 - Pattern 3: `since_id` / sequence checkpoint
 - Pattern 4: timestamp plus page token
 - Pattern 5: timestamp plus page number or offset
+- Pattern 6: `updated_at` via POST search with nested cursor pagination
 - Delete strategies
 - Full refresh fallback
 - Validation and execution
@@ -441,6 +442,77 @@ const sync = createSync({
     }
 });
 ```
+
+## Pattern 6: `updated_at` via POST search with nested cursor pagination
+
+Use this when the provider exposes the `updated_at` filter through a POST search endpoint and cursor pagination is returned in a nested body field (e.g., `pagination.starting_after`).
+
+`nango.paginate` with `method: 'POST'` automatically sends pagination params in the request body (`passPaginationParamsInBody` defaults to `true` for POST/PUT/PATCH). Use dot-path notation in `cursor_name_in_request` — the runtime uses lodash `set()` to write the cursor into the correct nested location. A top-level key like `'starting_after'` would land at the body root and be ignored by the provider.
+
+```typescript
+import { createSync, type ProxyConfiguration } from 'nango';
+
+const CheckpointSchema = z.object({
+    updated_after: z.number()
+});
+
+const sync = createSync({
+    frequency: 'every hour',
+    checkpoint: CheckpointSchema,
+    models: {
+        Contact: RecordSchema
+    },
+
+    exec: async (nango) => {
+        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const updatedAfter = checkpoint?.updated_after ?? Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
+
+        // cursor_name_in_request uses dot-path so lodash set() writes the cursor into
+        // body.pagination.starting_after, not at the top-level body key.
+        const proxyConfig: ProxyConfiguration = {
+            // https://api-docs-url
+            endpoint: '/v1/contacts/search',
+            method: 'POST',
+            data: {
+                query: {
+                    operator: 'AND',
+                    value: [{ field: 'updated_at', operator: '>', value: updatedAfter }]
+                },
+                pagination: { per_page: 150 }
+            },
+            paginate: {
+                type: 'cursor',
+                cursor_name_in_request: 'pagination.starting_after',
+                cursor_path_in_response: 'pages.next.starting_after',
+                response_path: 'data',
+                limit_name_in_request: 'per_page',
+                limit: 150
+            },
+            retries: 3
+        };
+
+        let maxUpdatedAt: number | undefined;
+
+        for await (const contacts of nango.paginate<{ id: string; updated_at: number }>(proxyConfig)) {
+            if (contacts.length > 0) {
+                await nango.batchSave(contacts, 'Contact');
+
+                for (const contact of contacts) {
+                    if (maxUpdatedAt === undefined || contact.updated_at > maxUpdatedAt) {
+                        maxUpdatedAt = contact.updated_at;
+                    }
+                }
+            }
+        }
+
+        if (maxUpdatedAt !== undefined) {
+            await nango.saveCheckpoint({ updated_after: maxUpdatedAt });
+        }
+    }
+});
+```
+
+Checkpoint is saved once after all pages are consumed because the `updated_at` filter is baked into the request body at the start — mid-run checkpointing here would not change the request for an in-progress run.
 
 ## Delete strategies
 
