@@ -79,7 +79,7 @@ If any required external values are missing, ask a targeted question after check
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
-- File uploads (FormData, Blob, multipart) cannot be implemented as actions. Actions run in a sandboxed runtime with no `fs` or `axios`. Route file upload operations to a proxy script using `@nangohq/node` instead — see `references/actions.md` for the full rationale.
+- File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
 
 ### Sync rules
