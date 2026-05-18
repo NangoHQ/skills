@@ -196,6 +196,18 @@ if (response.status === 429) {
 
 Do not return null-filled objects to indicate not found. Throw `ActionError` instead.
 
+## File uploads
+
+File uploads (multipart/form-data, FormData, Blob) **must not be implemented as Nango actions**. Actions run in Nango's sandboxed cloud runtime which has no `fs`, no `axios`, and no native `FormData`/`Blob` — multipart construction would require manual boundary building and `uncontrolledFetch` workarounds.
+
+File upload operations belong in **proxy scripts** that run externally via `@nangohq/node`:
+
+- The caller already has the file bytes (file upload is inherently client-side)
+- `nango.post({ data: formData })` works directly — axios handles multipart encoding automatically
+- Auth injection still happens server-side through the Nango proxy
+
+If you are asked to build an `upload-file` action or any operation that requires sending binary/form data to the provider, redirect to a proxy script instead. Do not attempt workarounds inside an action.
+
 ## Validation and execution
 
 Validation, dryrun, mock recording, and deployment are workflow-specific. Use the active skill's workflow instructions for those steps. This shared reference only defines implementation patterns.
