@@ -1,6 +1,6 @@
 ---
 name: migrating-to-checkpoints
-description: Migrates existing Nango TypeScript createSync implementations from nango.lastSyncDate, legacy incremental syncType, and non-resumable full refreshes to checkpoint-based syncs. Use when updating customer Nango sync code to define checkpoint schemas, call getCheckpoint/saveCheckpoint/clearCheckpoint, test dryruns with --checkpoint, and fix deletion handling for checkpointed incremental or full syncs.
+description: Migrates existing Nango TypeScript createSync implementations from nango.lastSyncDate, legacy incremental syncType, and non-resumable full refreshes to checkpoint-based syncs. Use when updating customer Nango sync code to define checkpoint schemas, call getCheckpoint/saveCheckpoint/clearCheckpoint after every batchSave (including inside paginate loops), test dryruns with --checkpoint, and fix deletion handling for checkpointed incremental or full syncs.
 ---
 
 # Migrating to Checkpoints
@@ -14,6 +14,7 @@ Update existing `createSync()` code to use checkpoints. Preserve provider behavi
 
 ## Gotchas
 
+- **Always call `saveCheckpoint()` immediately after every successful `batchSave()`** (and after `batchUpdate()` / `batchDelete()` when those advance progress). This is required inside pagination loops (`for await` over `nango.paginate`, manual cursor/offset loops, nested fetches)—not only once at the end of `exec`. Saving only after a helper returns or only at the end of `exec` leaves no durable progress if the run fails mid-pagination.
 - Do not add a checkpoint that is only saved. The next run must use it in provider request params or pagination/resume state.
 - Use flat checkpoint objects only: string, number, or boolean values. Store dates as ISO strings; do not save `Date` objects, arrays, or nested objects.
 - The first run after deployment has no checkpoint yet, so it behaves like an initial sync and may take longer than later incremental runs. Tell the customer when this matters.
@@ -51,17 +52,17 @@ If the provider cannot filter changes and cannot resume pagination, do not force
 
 ```ts
 const CheckpointSchema = z.object({
-    updated_after: z.string()
+  updated_after: z.string(),
 });
 
 export default createSync({
-    description: 'Sync contacts',
-    frequency: 'every hour',
-    checkpoint: CheckpointSchema,
-    models: { Contact },
-    exec: async (nango) => {
-        // ...
-    }
+  description: "Sync contacts",
+  frequency: "every hour",
+  checkpoint: CheckpointSchema,
+  models: { Contact },
+  exec: async (nango) => {
+    // ...
+  },
 });
 ```
 
@@ -73,25 +74,39 @@ export default createSync({
 const checkpoint = await nango.getCheckpoint();
 
 const response = await nango.get({
-    endpoint: '/contacts',
-    params: {
-        ...(checkpoint?.updated_after && { updated_after: checkpoint.updated_after })
-    },
-    retries: 3
+  endpoint: "/contacts",
+  params: {
+    ...(checkpoint?.updated_after && {
+      updated_after: checkpoint.updated_after,
+    }),
+  },
+  retries: 3,
 });
 ```
 
-4. Save the checkpoint after saving each page or batch:
+4. **After every `batchSave()`, call `saveCheckpoint()` in the same loop iteration**—including inside `nango.paginate` and any extracted pagination helper. Pair them; do not defer checkpoint writes to the end of `exec`.
 
 ```ts
 const contacts = response.data.items.map(mapContact);
-await nango.batchSave(contacts, 'Contact');
+await nango.batchSave(contacts, "Contact");
 
 if (contacts.length > 0) {
-    const lastContact = contacts[contacts.length - 1]!;
-    await nango.saveCheckpoint({ updated_after: lastContact.updated_at });
+  const lastContact = contacts[contacts.length - 1]!;
+  await nango.saveCheckpoint({ updated_after: lastContact.updated_at });
 }
 ```
+
+Paginated sync:
+
+```ts
+for await (const page of nango.paginate<Item>(config)) {
+  const records = page.map(mapRecord);
+  await nango.batchSave(records, "Contact");
+  await nango.saveCheckpoint({ updated_after: latestTimestamp(records) });
+}
+```
+
+Invalid: `await getAndSaveUsers(nango)` that only calls `batchSave` inside the loop, then `saveCheckpoint` once in `exec` after the helper returns.
 
 5. For timestamp checkpoints, prefer the provider record's sorted last-modified value. If records can share the same timestamp or the API cannot sort stably, use a composite checkpoint with a provider cursor/page token or a tie-breaker field such as `last_id`.
 
@@ -102,7 +117,7 @@ if (contacts.length > 0) {
 Use this only when the API cannot return changed rows but can resume pagination. The checkpoint is for failure recovery, not incremental filtering.
 
 - Read the saved cursor/page before fetching.
-- Save the next cursor/page after each successful `batchSave`.
+- After each successful `batchSave()`, call `saveCheckpoint()` with the next cursor/page (same loop body—never only at the end of `exec`).
 - Call `clearCheckpoint()` only after the last page is saved.
 - On the next scheduled run, a cleared checkpoint makes the sync start from the beginning again.
 
@@ -132,7 +147,7 @@ Use `--metadata` when the sync needs metadata, tailor the `--checkpoint` payload
 - [ ] `checkpoint` schema exists and uses only flat primitive values
 - [ ] `getCheckpoint()` is called before provider requests
 - [ ] Saved checkpoint changes the next provider request or resume state
-- [ ] `saveCheckpoint()` runs after each successful `batchSave`/`batchUpdate`/`batchDelete` page as appropriate
+- [ ] Every `batchSave()`/`batchUpdate()`/`batchDelete()` that advances progress is immediately followed by `saveCheckpoint()` in the same loop (including inside `nango.paginate` and pagination helpers—not only once after `exec` returns)
 - [ ] Full refresh syncs call `clearCheckpoint()` only after successful completion
 - [ ] Delete handling matches the sync type: `batchDelete()` for explicit provider deletes, `trackDeletesStart/End` only for full refresh
 - [ ] Dryrun was tested with a realistic `--checkpoint`
