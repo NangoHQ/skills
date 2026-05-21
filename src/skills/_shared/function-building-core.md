@@ -87,6 +87,7 @@ If any required external values are missing, ask a targeted question after check
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch/save.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
 - Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes the full window.
+- If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
 
 ### Conventions
 
