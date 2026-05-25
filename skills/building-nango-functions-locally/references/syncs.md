@@ -557,6 +557,8 @@ Use full refresh only when the provider truly cannot return changes, deletions, 
 
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
 
+Call `trackDeletesStart` **after** any metadata or input validation, but **before** the fetch loop. If validation fails and returns early, `trackDeletesEnd` will never run — leaving delete tracking unclosed and causing missed or false deletions.
+
 ```typescript
 const sync = createSync({
     frequency: 'every hour',
