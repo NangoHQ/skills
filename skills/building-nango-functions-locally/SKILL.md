@@ -1,15 +1,16 @@
 ---
 name: building-nango-functions-locally
-description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy. Use when creating or updating Nango actions or syncs locally.
+description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy via CLI. Use when creating, updating, validating, testing, or deploying Nango actions or syncs locally in a repo. This content overlaps with building-nango-functions but adds CLI workflow details, so load this instead of building-nango-functions whenever a local project, local files, Nango root, CLI, dryrun, generated tests, or nango deploy workflow is indicated.
 ---
 
 # Build Nango Functions Locally
 Build deployable Nango actions and syncs in a checked-out Nango project with the local CLI validation and test workflow.
 
-## When to use
-- User wants to build or modify a Nango function
-- User wants to build an action in Nango
-- User wants to build a sync in Nango
+## Implementation Scope
+- Build or modify a Nango function implementation
+- Build an action in Nango with `createAction()`
+- Build a sync in Nango with `createSync()`
+- Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
 ## Sync Strategy Gate (required before writing code)
 
@@ -48,16 +49,16 @@ Sync:
 
 Always:
 - Integration ID (provider name)
-- Connection ID (for validation or dryrun)
 - Script/function name (kebab-case)
 - API reference URL or sample response
+- Connection ID if the active workflow will validate or dryrun the function
 
 Action-specific:
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON for validation/dryrun (required; use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
 
 Sync-specific:
 - Model name (singular, PascalCase)

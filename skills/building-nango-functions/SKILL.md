@@ -1,10 +1,14 @@
 ---
-name: building-nango-functions-remotely
-description: Builds Nango Functions without a checked-out Nango project by using Nango remote compile, dryrun, and deploy APIs with NANGO_SERVER_URL and NANGO_SECRET_KEY. Use when creating, updating, validating, testing, or deploying Nango actions or syncs remotely via API or single-file payloads. This content overlaps with building-nango-functions but adds remote API workflow details, so load this instead of building-nango-functions whenever remote, API, compile endpoint, dryrun endpoint, deploy endpoint, or no local project workflow is indicated.
+name: building-nango-functions
+description: Builds Nango Function implementation patterns for createAction() and createSync() without choosing a local CLI or remote API workflow. Use only when the user asks to create or update a Nango action or sync and it is unclear whether the work should happen in a checked-out project via CLI or through Nango remote APIs. Do not load when building-nango-functions-locally or building-nango-functions-remotely applies; those skills overlap with this content and add workflow-specific validation and deploy details.
 ---
 
-# Build Nango Functions Remotely
-Build Nango actions and syncs without a checked-out Nango project by sending a single-file TypeScript function to Nango's remote compile, dryrun, and deploy APIs.
+# Build Nango Functions
+Build Nango action and sync implementations without choosing the execution workflow.
+
+This skill covers the function design contract: schemas, provider calls, action outputs, sync models, checkpoints, deletion handling, metadata, retries, and runtime constraints. It intentionally does not cover local CLI validation/deploy or remote API compile/dryrun/deploy.
+
+If the task becomes clearly local/CLI-based, use `building-nango-functions-locally` instead. If it becomes clearly remote/API-based, use `building-nango-functions-remotely` instead.
 
 ## Implementation Scope
 - Build or modify a Nango function implementation
@@ -161,71 +165,3 @@ If web fetching returns incomplete docs (JS-rendered):
 - Ask the user for a sample response
 - Use existing Nango actions or syncs in the workspace as a pattern when they exist
 - Use the skill-specific validation or dryrun workflow until it passes
-
-## Preconditions (Do Before Writing Code)
-
-- No checked-out Nango project is required.
-- Resolve `NANGO_SERVER_URL` in this order: environment variable, `.env` file, then fallback to `https://api.nango.dev`.
-- Resolve `NANGO_SECRET_KEY` before calling remote endpoints.
-- Use the environment bound to that secret key.
-- Keep the function self-contained in one TypeScript file unless you have direct evidence that the remote endpoint accepts multi-file payloads.
-- Do NOT create or modify any files in the current project/directory. If you need to create files, use a temp folder
-
-## Workflow (required)
-1. Decide whether this is an action or a sync.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
-3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
-4. Gather required inputs and external values, including the `NANGO_SECRET_KEY` for the target environment and any metadata needed for dryrun.
-5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
-6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
-7. Compile with `POST {host}/remote-function/compile` until compilation passes.
-8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `input`, `metadata`, or `checkpoint` as needed.
-9. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-10. Deploy with `POST {host}/remote-function/deploy` only when requested.
-
-## Remote API Workflow (required)
-
-Read `references/api.md` before making remote calls.
-
-Required sequence:
-1. Compile first with `/remote-function/compile`.
-2. Dryrun second with `/remote-function/dryrun`.
-3. Deploy last with `/remote-function/deploy`.
-
-Rules:
-- These endpoints are relative. Always resolve them against the chosen `NANGO_SERVER_URL`.
-- Send `Authorization: Bearer <NANGO_SECRET_KEY>` and `Content-Type: application/json`.
-- Do not send query params unless the API docs or an existing caller prove they are supported.
-- Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
-- For actions, dryrun should include `input` and `metadata` only when needed.
-- For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
-- Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result, but it does not record local mocks.
-
-## Final Checklists
-
-Action:
-- [ ] `references/actions.md` was used for the action pattern
-- [ ] Schemas and types are clear, and the function stays self-contained in one file
-- [ ] `createAction()` includes endpoint, input, output, and scopes when required
-- [ ] Fields use passthrough casing or the API's majority casing
-- [ ] Provider call includes an API doc link comment and intentional retries
-- [ ] `nango.ActionError` is used for expected failures
-- [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-function/compile`
-- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and the expected action output
-- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
-
-Sync:
-- [ ] `references/syncs.md` was used for the sync pattern
-- [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters
-- [ ] Incremental was chosen first, with a checkpoint schema unless full refresh is explicitly justified from docs or payloads
-- [ ] `nango.getCheckpoint()` is read at the start and `nango.saveCheckpoint()` runs after each page or batch
-- [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
-- [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
-- [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
-- [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
-- [ ] The function stays self-contained in one file unless the remote API proves multi-file support
-- [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-function/compile`
-- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and returns the expected change set
-- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
