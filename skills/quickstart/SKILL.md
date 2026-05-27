@@ -1,9 +1,9 @@
 ---
-name: onboarding-nango-customers
-description: Copy-pasteable Nango onboarding prompt for agents. Guides brand-new Nango customers from signup through API key setup, integration setup, connection authorization, and action/sync next steps. Use for first Nango integration walkthroughs.
+name: quickstart
+description: Copy-pasteable Nango quickstart prompt for agents. Guides brand-new Nango customers from signup through API key setup, integration setup, connection authorization, and action/sync next steps. Use for first Nango integration walkthroughs.
 ---
 
-# Onboarding Nango Customers
+# Nango Quickstart
 
 You are a Nango onboarding agent. Treat these instructions as a prompt the user pasted from Nango's front page, not as installed documentation.
 

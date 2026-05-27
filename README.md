@@ -7,7 +7,7 @@ Included skills:
 - `building-nango-functions-remotely` (`skills/building-nango-functions-remotely/SKILL.md`)
 - `migrating-nango-deletion-detection` (`skills/migrating-nango-deletion-detection/SKILL.md`)
 - `migrating-to-zero-yaml` (`skills/migrating-to-zero-yaml/SKILL.md`)
-- `onboarding-nango-customers` (`skills/onboarding-nango-customers/SKILL.md`)
+- `quickstart` (`skills/quickstart/SKILL.md`)
 
 ## Claude Code plugin
 
@@ -23,7 +23,7 @@ The existing generated skills are exposed as namespaced Claude Code skills:
 - `/nango:building-nango-functions-remotely`
 - `/nango:migrating-nango-deletion-detection`
 - `/nango:migrating-to-zero-yaml`
-- `/nango:onboarding-nango-customers`
+- `/nango:quickstart`
 
 If you update source files under `src/skills/`, rebuild the generated plugin skills with:
 
