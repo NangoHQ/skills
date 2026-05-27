@@ -1,0 +1,23 @@
+skills/quickstart/SKILL.md
+  s_99cda3f652b86f::t_74953f3621fbcb 1-67
+src/skills/quickstart/SKILL.template.md
+  s_99cda3f652b86f::t_3055732835e3ee 1-67
+README.md
+  s_99cda3f652b86f::t_3055732835e3ee 10,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f6f2ecfd1bbb02ceba60cfc5bfd5bda0bd50473c",
+  "prompts": {},
+  "sessions": {
+    "s_99cda3f652b86f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dab9e-2f56-7671-9070-0cfa1ddc5e92",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Marcin Dobrowolski <marcindobry@hotmail.com>"
+    }
+  }
+}
