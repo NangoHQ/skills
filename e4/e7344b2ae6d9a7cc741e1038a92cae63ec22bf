@@ -1,0 +1,35 @@
+src/skills/building-nango-functions-remotely/SKILL.parts/api-workflow.md
+  s_99cda3f652b86f::t_7f05c01bec904a 6-8,15
+src/skills/building-nango-functions-remotely/SKILL.parts/preconditions.md
+  s_99cda3f652b86f::t_7f05c01bec904a 5
+src/skills/building-nango-functions-remotely/references/api.md
+  s_99cda3f652b86f::t_7f05c01bec904a 1,10-13,25-26,30,35,38,42,49-50,54-56,58
+skills/building-nango-functions-remotely/SKILL.md
+  s_99cda3f652b86f::t_7f05c01bec904a 3,7,166,177-180,187-189,196,209-211,223-225
+src/skills/building-nango-functions-remotely/SKILL.parts/frontmatter.md
+  s_99cda3f652b86f::t_7f05c01bec904a 3
+src/skills/building-nango-functions-remotely/SKILL.parts/final-checklists.md
+  s_99cda3f652b86f::t_7f05c01bec904a 11-13,25-27
+src/skills/building-nango-functions-remotely/SKILL.parts/intro.md
+  s_99cda3f652b86f::t_7f05c01bec904a 2
+src/skills/building-nango-functions-remotely/SKILL.parts/workflow.md
+  s_99cda3f652b86f::t_7f05c01bec904a 8-11
+skills/building-nango-functions-remotely/references/api.md
+  s_99cda3f652b86f::t_7f05c01bec904a 1,10-13,25-26,30,35,38,42,49-50,54-56,58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e4e7344b2ae6d9a7cc741e1038a92cae63ec22bf",
+  "prompts": {},
+  "sessions": {
+    "s_99cda3f652b86f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dab9e-2f56-7671-9070-0cfa1ddc5e92",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Marcin Dobrowolski <marcindobry@hotmail.com>"
+    }
+  }
+}
