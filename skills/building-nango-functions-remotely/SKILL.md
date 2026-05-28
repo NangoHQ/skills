@@ -1,6 +1,6 @@
 ---
 name: building-nango-functions-remotely
-description: Builds Nango Functions without a checked-out Nango project by using the Nango /functions compile, dryrun, dryrun status, and deployment APIs with NANGO_SERVER_URL and NANGO_SECRET_KEY. Use when creating, updating, validating, testing, or deploying Nango actions or syncs remotely via API or single-file payloads. This content overlaps with building-nango-functions but adds remote API workflow details, so load this instead of building-nango-functions whenever remote, API, /functions/compile, /functions/dryruns, /functions/deployments, legacy /remote-function, or no local project workflow is indicated.
+description: Builds Nango Functions without a checked-out Nango project by using the Nango /functions compile, dryrun, dryrun status, and deployment APIs with NANGO_SERVER_URL and NANGO_SECRET_KEY. Use when creating, updating, validating, testing, or deploying Nango actions or syncs remotely via API or single-file payloads. This content overlaps with building-nango-functions but adds remote API workflow details, so load this instead of building-nango-functions whenever remote, API, /functions/compile, /functions/dryruns, /functions/deployments, or no local project workflow is indicated.
 ---
 
 # Build Nango Functions Remotely
@@ -168,7 +168,7 @@ If web fetching returns incomplete docs (JS-rendered):
 - Resolve `NANGO_SERVER_URL` in this order: environment variable, `.env` file, then fallback to `https://api.nango.dev`.
 - Resolve `NANGO_SECRET_KEY` before calling function endpoints.
 - Use the environment bound to that secret key.
-- Confirm the key has the needed scope: `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun and polling, and `environment:deploy` for deployment. Full-access environment keys satisfy all three.
+- Confirm the key has the needed scope: `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun and polling, and `environment:deploy` for deployment.
 - Keep the function self-contained in one TypeScript file unless you have direct evidence that the remote endpoint accepts multi-file payloads.
 - Do NOT create or modify any files in the current project/directory. If you need to create files, use a temp folder
 
@@ -201,14 +201,13 @@ Rules:
 - Required API key scopes are `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun create/status, and `environment:deploy` for deployment.
 - Do not send query params unless the API docs or an existing caller prove they are supported.
 - Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
-- Compile sends only `{ "code": "..." }`; do not include `integration_id`, `function_name`, or `function_type`.
-- Dryrun sends `integration_id`, `function_type`, `code`, and `connection_id`; do not include `function_name`. The server uses an internal temporary name for dryruns.
+- Compile sends only `{ "code": "..." }`.
+- Dryrun sends `integration_id`, `function_type`, `code`, and `connection_id`.
 - Deploy sends `type: "function"`, `integration_id`, `function_name`, `function_type`, and `code`. Add `version` or `allow_destructive` only when explicitly needed.
 - For actions, dryrun should include `input` and `metadata` only when needed.
 - For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
 - Dryrun is asynchronous. `POST /functions/dryruns` returns an `id`; poll `GET /functions/dryruns/{id}` for `status`, `output`, `result`, or `error`. Do not call `/functions/dryruns/{id}/result`; it is sandbox-internal.
 - Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result through the status endpoint, but it does not record local mocks.
-- Use legacy `/remote-function/*` endpoints only as an explicit fallback for servers that do not yet expose `/functions/*`.
 
 ## Final Checklists
 

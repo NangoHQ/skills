@@ -31,7 +31,6 @@ All function endpoints are relative to that host:
 - `POST /functions/compile` requires `environment:functions:compile`
 - `POST /functions/dryruns` and `GET /functions/dryruns/{id}` require `environment:functions:dryrun`
 - `POST /functions/deployments` requires `environment:deploy`
-- Full-access environment keys include these scopes. Dedicated deploy keys do not automatically compile or dryrun.
 
 ## Request sequencing
 
@@ -64,8 +63,6 @@ Dryrun payload:
 Add only the fields needed by the function:
 - Actions: `input`, `metadata`
 - Syncs: `metadata`, `checkpoint`
-
-Do not include `function_name` in dryrun payloads. The API runs the submitted source as a temporary function named `function`.
 
 Deployment payload:
 
@@ -242,5 +239,3 @@ curl -sS -X POST "$NANGO_SERVER_URL/functions/deployments" \
 - `404 dryrun_not_found`: poll with the exact id returned by the dryrun create response.
 - `503 execution_environment_unavailable`: retry later; the execution sandbox capacity is temporarily unavailable.
 - `504 timeout`: simplify the function, reduce provider calls, or retry when the sandbox is healthy.
-
-Use legacy `/remote-function/compile`, `/remote-function/dryrun`, and `/remote-function/deploy` only when the target server does not expose `/functions/*`. Those legacy endpoints accept `function_name` for compile/dryrun and return dryrun results synchronously, so do not mix payloads between the two API families.
