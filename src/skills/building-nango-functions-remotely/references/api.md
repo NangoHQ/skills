@@ -1,14 +1,5 @@
 # Functions API Reference
 
-## Contents
-- Host resolution
-- Auth
-- Request sequencing
-- Request body guidance
-- Response guidance
-- Dryrun examples
-- Error handling
-
 ## Host resolution
 
 Resolve the base host in this order:
