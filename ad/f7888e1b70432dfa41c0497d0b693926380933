@@ -1,0 +1,39 @@
+src/skills/building-nango-functions-remotely/SKILL.parts/preconditions.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 5,7
+skills/quickstart/SKILL.md
+  s_99cda3f652b86f::t_c17266492e9a3a 51
+src/skills/building-nango-functions-remotely/SKILL.parts/intro.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 2
+src/skills/building-nango-functions-remotely/references/api.md
+  s_99cda3f652b86f::t_70508176e0d123 1-10,19-23,31-34,39-41,45-53,60,64-70,74,78,82-244,246
+skills/building-nango-functions-remotely/SKILL.md
+  s_99cda3f652b86f::t_c17266492e9a3a 3,7,166,168,178-182,189-192,197,200-203,205-207,219-222,234-237
+src/skills/building-nango-functions-remotely/SKILL.parts/final-checklists.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 11-14,26-29
+skills/building-nango-functions-remotely/references/api.md
+  s_99cda3f652b86f::t_c17266492e9a3a 1-10,19-23,31-34,39-41,45-53,60,64-70,74,78,82-244,246
+src/skills/building-nango-functions-remotely/SKILL.parts/workflow.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 8-12
+src/skills/building-nango-functions-remotely/SKILL.parts/api-workflow.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 6-9,14,17-20,22-24
+src/skills/building-nango-functions-remotely/SKILL.parts/frontmatter.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 3
+src/skills/quickstart/SKILL.template.md
+  s_99cda3f652b86f::t_6e8b06426e88ae 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "adf7888e1b70432dfa41c0497d0b693926380933",
+  "prompts": {},
+  "sessions": {
+    "s_99cda3f652b86f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dab9e-2f56-7671-9070-0cfa1ddc5e92",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Marcin Dobrowolski <marcindobry@hotmail.com>"
+    }
+  }
+}
