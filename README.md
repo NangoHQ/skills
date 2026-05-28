@@ -9,6 +9,7 @@ Included skills:
 - `migrating-nango-deletion-detection` (`skills/migrating-nango-deletion-detection/SKILL.md`)
 - `migrating-to-checkpoints` (`skills/migrating-to-checkpoints/SKILL.md`)
 - `migrating-to-zero-yaml` (`skills/migrating-to-zero-yaml/SKILL.md`)
+- `quickstart` (`skills/quickstart/SKILL.md`)
 
 ## Claude Code plugin
 
@@ -26,6 +27,7 @@ The existing generated skills are exposed as namespaced Claude Code skills:
 - `/nango:migrating-nango-deletion-detection`
 - `/nango:migrating-to-checkpoints`
 - `/nango:migrating-to-zero-yaml`
+- `/nango:quickstart`
 
 If you update source files under `src/skills/`, rebuild the generated plugin skills with:
 
