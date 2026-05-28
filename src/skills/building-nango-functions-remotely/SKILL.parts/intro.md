@@ -1,2 +1,2 @@
 # Build Nango Functions Remotely
-Build Nango actions and syncs without a checked-out Nango project by sending a single-file TypeScript function to Nango's `/functions/compile`, `/functions/dryruns`, and `/functions/deployments` APIs.
+Build Nango actions and syncs without a checked-out Nango project by sending a single-file TypeScript function to Nango's remote compile, dryrun, and deploy APIs.

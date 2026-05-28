@@ -1,13 +1,4 @@
-# Functions API Reference
-
-## Contents
-- Host resolution
-- Auth
-- Request sequencing
-- Request body guidance
-- Response guidance
-- Dryrun examples
-- Error handling
+# Remote Functions API Reference
 
 ## Host resolution
 
@@ -16,11 +7,10 @@ Resolve the base host in this order:
 2. `NANGO_SERVER_URL` from a local `.env` file
 3. `https://api.nango.dev`
 
-All function endpoints are relative to that host:
-- `POST /functions/compile`
-- `POST /functions/dryruns`
-- `GET /functions/dryruns/{id}`
-- `POST /functions/deployments`
+All remote function endpoints are relative to that host:
+- `/remote-function/compile`
+- `/remote-function/dryrun`
+- `/remote-function/deploy`
 
 ## Auth
 
@@ -28,219 +18,41 @@ All function endpoints are relative to that host:
 - Header: `Content-Type: application/json`
 - Use the environment tied to the secret key
 - Prefer request bodies over query params
-- `POST /functions/compile` requires `environment:functions:compile`
-- `POST /functions/dryruns` and `GET /functions/dryruns/{id}` require `environment:functions:dryrun`
-- `POST /functions/deployments` requires `environment:deploy`
-- Full-access environment keys include these scopes. Dedicated deploy keys do not automatically compile or dryrun.
 
 ## Request sequencing
 
 1. Compile first.
-2. Start a dryrun only after compile passes.
-3. Poll dryrun status until `success` or `failed`.
-4. Deploy only when the task explicitly includes deployment.
+2. Dryrun only after compile passes.
+3. Deploy only when the task explicitly includes deployment.
 
 ## Request body guidance
 
-Compile payload:
-
-```json
-{
-  "code": "string"
-}
-```
-
-Dryrun payload:
+Start compile and deploy payloads with:
 
 ```json
 {
   "integration_id": "string",
+  "function_name": "string",
   "function_type": "action | sync",
   "code": "string",
-  "connection_id": "string"
+  "environment": "string"
+}
+```
+
+Start dryrun payloads with:
+
+```json
+{
+  "integration_id": "string",
+  "function_name": "string",
+  "function_type": "action | sync",
+  "connection_id": "string",
+  "environment": "string"
 }
 ```
 
 Add only the fields needed by the function:
-- Actions: `input`, `metadata`
+- Actions: `test_input`, `metadata`
 - Syncs: `metadata`, `checkpoint`
 
-Do not include `function_name` in dryrun payloads. The API runs the submitted source as a temporary function named `function`.
-
-Deployment payload:
-
-```json
-{
-  "type": "function",
-  "integration_id": "string",
-  "function_name": "string",
-  "function_type": "action | sync",
-  "code": "string"
-}
-```
-
-Add only when needed:
-- `version`: optional deployment version tag
-- `allow_destructive`: optional boolean for overwriting an existing standalone function
-
-Remote dryrun supports the request-body equivalents of CLI `--input`, `--metadata`, `--checkpoint`, and legacy `--lastSyncDate` as `input`, `metadata`, `checkpoint`, and `last_sync_date`. Do not use `last_sync_date` for new sync designs. It does not expose CLI `--validate` or `--save`; compile first, then dryrun, and do not expect mock files to be recorded.
-
-## Response guidance
-
-Compile success (`200`) returns:
-
-```json
-{
-  "bundle_size_bytes": 12345,
-  "bundled_js": "...",
-  "compiled_at": "2026-05-26T00:00:00.000Z"
-}
-```
-
-Dryrun create success (`202`) returns:
-
-```json
-{
-  "id": "00000000-0000-0000-0000-000000000000",
-  "status": "running",
-  "created_at": "2026-05-26T00:00:00.000Z"
-}
-```
-
-Poll `GET /functions/dryruns/{id}` until `status` is `success` or `failed`.
-
-Terminal success includes `output` and may include `result`:
-
-```json
-{
-  "id": "00000000-0000-0000-0000-000000000000",
-  "status": "success",
-  "integration_id": "github",
-  "function_type": "action",
-  "created_at": "2026-05-26T00:00:00.000Z",
-  "updated_at": "2026-05-26T00:00:05.000Z",
-  "duration_ms": 1234,
-  "output": "Executing -> function\nDone",
-  "result": { "ok": true }
-}
-```
-
-Terminal failure includes `error`:
-
-```json
-{
-  "id": "00000000-0000-0000-0000-000000000000",
-  "status": "failed",
-  "integration_id": "github",
-  "function_type": "sync",
-  "created_at": "2026-05-26T00:00:00.000Z",
-  "updated_at": "2026-05-26T00:00:05.000Z",
-  "error": {
-    "code": "dryrun_error",
-    "message": "Dry run failed"
-  }
-}
-```
-
-Deployment success (`200`) returns:
-
-```json
-{
-  "integration_id": "github",
-  "function_name": "list-repos",
-  "function_type": "action",
-  "deployed": true,
-  "deployed_functions": [{ "name": "list-repos", "version": "1" }],
-  "output": "..."
-}
-```
-
-## Dryrun examples
-
-Use the `NANGO_SECRET_KEY` for the target environment; the environment is inferred from that key.
-
-```bash
-# Compile first
-curl -sS -X POST "$NANGO_SERVER_URL/functions/compile" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "code": "...TypeScript source..."
-  }'
-
-# Dryrun an action
-curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "integration_id": "slack",
-    "function_type": "action",
-    "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "input": { "channel": "C123", "text": "hello" }
-  }'
-
-# Dryrun a no-input action
-curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "integration_id": "github",
-    "function_type": "action",
-    "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "input": {}
-  }'
-
-# Dryrun a sync from a checkpoint
-curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "integration_id": "salesforce",
-    "function_type": "sync",
-    "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "checkpoint": { "cursor": "abc" }
-  }'
-
-# Dryrun with metadata
-curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "integration_id": "slack",
-    "function_type": "sync",
-    "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "metadata": { "team_id": "T123" }
-  }'
-
-# Poll status with the id returned by POST /functions/dryruns
-curl -sS "$NANGO_SERVER_URL/functions/dryruns/$DRYRUN_ID" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY"
-
-# Deploy only when requested
-curl -sS -X POST "$NANGO_SERVER_URL/functions/deployments" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "function",
-    "integration_id": "github",
-    "function_name": "list-repos",
-    "function_type": "action",
-    "code": "...TypeScript source..."
-  }'
-```
-
-## Error handling
-
-- `400 invalid_body`: remove unsupported fields; the schemas are strict.
-- `403 forbidden`: check the API key scope for the endpoint.
-- `404 integration_not_found`: create or select the integration ID in the target environment.
-- `404 connection_not_found`: check `connection_id` and `integration_id` for dryruns.
-- `404 dryrun_not_found`: poll with the exact id returned by the dryrun create response.
-- `503 execution_environment_unavailable`: retry later; the execution sandbox capacity is temporarily unavailable.
-- `504 timeout`: simplify the function, reduce provider calls, or retry when the sandbox is healthy.
-
-Use legacy `/remote-function/compile`, `/remote-function/dryrun`, and `/remote-function/deploy` only when the target server does not expose `/functions/*`. Those legacy endpoints accept `function_name` for compile/dryrun and return dryrun results synchronously, so do not mix payloads between the two API families.
+Because these endpoints are evolving, trust the server's validation errors and any existing caller code over stale examples. If the API rejects a field, remove or rename it based on the returned error instead of inventing new parameters.

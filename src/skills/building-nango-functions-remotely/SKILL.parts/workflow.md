@@ -5,8 +5,7 @@
 4. Gather required inputs and external values, including `NANGO_SECRET_KEY`, target environment, and any metadata needed for dryrun.
 5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
 6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
-7. Compile with `POST {host}/functions/compile` until compilation passes.
-8. Start a dryrun with `POST {host}/functions/dryruns` using the target integration, connection, function type, code, and any `input`, `metadata`, or `checkpoint` needed.
-9. Poll `GET {host}/functions/dryruns/{id}` until the dryrun reaches `success` or `failed`.
-10. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-11. Deploy with `POST {host}/functions/deployments` only when requested.
+7. Compile with `POST {host}/remote-function/compile` until compilation passes.
+8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `test_input`, `metadata`, or `checkpoint` as needed.
+9. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
+10. Deploy with `POST {host}/remote-function/deploy` only when requested.
