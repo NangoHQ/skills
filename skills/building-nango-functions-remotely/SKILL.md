@@ -183,7 +183,8 @@ If web fetching returns incomplete docs (JS-rendered):
 8. Start a dryrun with `POST {host}/functions/dryruns` using the target integration, connection, function type, code, and any `input`, `metadata`, or `checkpoint` needed.
 9. Poll `GET {host}/functions/dryruns/{id}` until the dryrun reaches `success` or `failed`.
 10. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-11. Deploy with `POST {host}/functions/deployments` only when requested.
+11. Start deployment with `POST {host}/functions/deployments` only when requested.
+12. Poll `GET {host}/functions/deployments/{id}` until the deployment reaches `success` or `failed`.
 
 ## Remote API Workflow (required)
 
@@ -193,12 +194,13 @@ Required sequence:
 1. Compile first with `POST /functions/compile`.
 2. Start dryrun second with `POST /functions/dryruns`.
 3. Poll dryrun status with `GET /functions/dryruns/{id}` until terminal.
-4. Deploy last with `POST /functions/deployments`.
+4. Start deployment last with `POST /functions/deployments` only when requested.
+5. Poll deployment status with `GET /functions/deployments/{id}` until terminal.
 
 Rules:
 - These endpoints are relative. Always resolve them against the chosen `NANGO_SERVER_URL`.
 - Send `Authorization: Bearer <NANGO_SECRET_KEY>` and `Content-Type: application/json`.
-- Required API key scopes are `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun create/status, and `environment:deploy` for deployment.
+- Required API key scopes are `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun create/status, and `environment:deploy` for deployment create/status.
 - Do not send query params unless the API docs or an existing caller prove they are supported.
 - Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
 - Compile sends only `{ "code": "..." }`.
@@ -207,6 +209,8 @@ Rules:
 - For actions, dryrun should include `input` and `metadata` only when needed.
 - For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
 - Dryrun is asynchronous. `POST /functions/dryruns` returns an `id`; poll `GET /functions/dryruns/{id}` for `status`, `output`, `result`, or `error`. Do not call `/functions/dryruns/{id}/result`; it is sandbox-internal.
+- Deployment is asynchronous. `POST /functions/deployments` returns an `id`; poll `GET /functions/deployments/{id}` for `status`, `deployed`, `deployed_functions`, `output`, or `error`. Do not call `/functions/deployments/{id}/result`; it is sandbox-internal.
+- Treat `waiting` and `running` as nonterminal; stop polling only on `success` or `failed`.
 - Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result through the status endpoint, but it does not record local mocks.
 
 ## Final Checklists
@@ -222,7 +226,8 @@ Action:
 - [ ] Compile succeeds with `POST /functions/compile`
 - [ ] Dryrun was started with `POST /functions/dryruns`
 - [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` with the expected action output
-- [ ] Deploy succeeds with `POST /functions/deployments` when requested
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
 
 Sync:
 - [ ] `references/syncs.md` was used for the sync pattern
@@ -238,4 +243,5 @@ Sync:
 - [ ] Compile succeeds with `POST /functions/compile`
 - [ ] Dryrun was started with `POST /functions/dryruns`
 - [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` and returns the expected change set
-- [ ] Deploy succeeds with `POST /functions/deployments` when requested
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested

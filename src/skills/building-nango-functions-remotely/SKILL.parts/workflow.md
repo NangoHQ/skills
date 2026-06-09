@@ -9,4 +9,5 @@
 8. Start a dryrun with `POST {host}/functions/dryruns` using the target integration, connection, function type, code, and any `input`, `metadata`, or `checkpoint` needed.
 9. Poll `GET {host}/functions/dryruns/{id}` until the dryrun reaches `success` or `failed`.
 10. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-11. Deploy with `POST {host}/functions/deployments` only when requested.
+11. Start deployment with `POST {host}/functions/deployments` only when requested.
+12. Poll `GET {host}/functions/deployments/{id}` until the deployment reaches `success` or `failed`.

@@ -12,6 +12,7 @@ All function endpoints are relative to that host:
 - `POST /functions/dryruns`
 - `GET /functions/dryruns/{id}`
 - `POST /functions/deployments`
+- `GET /functions/deployments/{id}`
 
 ## Auth
 
@@ -21,14 +22,15 @@ All function endpoints are relative to that host:
 - Prefer request bodies over query params
 - `POST /functions/compile` requires `environment:functions:compile`
 - `POST /functions/dryruns` and `GET /functions/dryruns/{id}` require `environment:functions:dryrun`
-- `POST /functions/deployments` requires `environment:deploy`
+- `POST /functions/deployments` and `GET /functions/deployments/{id}` require `environment:deploy`
 
 ## Request sequencing
 
 1. Compile first.
 2. Start a dryrun only after compile passes.
 3. Poll dryrun status until `success` or `failed`.
-4. Deploy only when the task explicitly includes deployment.
+4. Start deployment only when the task explicitly includes deployment.
+5. Poll deployment status until `success` or `failed`.
 
 ## Request body guidance
 
@@ -97,6 +99,8 @@ Dryrun create success (`202`) returns:
 
 Poll `GET /functions/dryruns/{id}` until `status` is `success` or `failed`.
 
+Do not call `/functions/dryruns/{id}/result`; it is a sandbox callback endpoint, not a customer polling endpoint.
+
 Terminal success includes `output` and may include `result`:
 
 ```json
@@ -130,16 +134,55 @@ Terminal failure includes `error`:
 }
 ```
 
-Deployment success (`200`) returns:
+Deployment create success (`202`) returns:
 
 ```json
 {
+  "id": "00000000-0000-0000-0000-000000000000",
+  "status": "running",
+  "created_at": "2026-05-26T00:00:00.000Z"
+}
+```
+
+Poll `GET /functions/deployments/{id}` until `status` is `success` or `failed`.
+
+Do not call `/functions/deployments/{id}/result`; it is a sandbox callback endpoint, not a customer polling endpoint.
+
+Terminal deployment success includes `deployed`, `deployed_functions`, and `output`:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "status": "success",
   "integration_id": "github",
   "function_name": "list-repos",
   "function_type": "action",
+  "created_at": "2026-05-26T00:00:00.000Z",
+  "updated_at": "2026-05-26T00:00:05.000Z",
+  "started_at": "2026-05-26T00:00:00.000Z",
+  "completed_at": "2026-05-26T00:00:05.000Z",
+  "duration_ms": 1234,
   "deployed": true,
   "deployed_functions": [{ "name": "list-repos", "version": "1" }],
-  "output": "..."
+  "output": "Successfully deployed the functions:\n- list-repos@1"
+}
+```
+
+Terminal deployment failure includes `error`:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "status": "failed",
+  "integration_id": "github",
+  "function_name": "list-repos",
+  "function_type": "action",
+  "created_at": "2026-05-26T00:00:00.000Z",
+  "updated_at": "2026-05-26T00:00:05.000Z",
+  "error": {
+    "code": "deployment_error",
+    "message": "Deployment failed"
+  }
 }
 ```
 
@@ -219,6 +262,10 @@ curl -sS -X POST "$NANGO_SERVER_URL/functions/deployments" \
     "function_type": "action",
     "code": "...TypeScript source..."
   }'
+
+# Poll deployment status with the id returned by POST /functions/deployments
+curl -sS "$NANGO_SERVER_URL/functions/deployments/$DEPLOYMENT_ID" \
+  -H "Authorization: Bearer $NANGO_SECRET_KEY"
 ```
 
 ## Error handling
@@ -228,5 +275,6 @@ curl -sS -X POST "$NANGO_SERVER_URL/functions/deployments" \
 - `404 integration_not_found`: create or select the integration ID in the target environment.
 - `404 connection_not_found`: check `connection_id` and `integration_id` for dryruns.
 - `404 dryrun_not_found`: poll with the exact id returned by the dryrun create response.
+- `404 deployment_not_found`: poll with the exact id returned by the deployment create response.
 - `503 execution_environment_unavailable`: retry later; the execution sandbox capacity is temporarily unavailable.
 - `504 timeout`: simplify the function, reduce provider calls, or retry when the sandbox is healthy.
