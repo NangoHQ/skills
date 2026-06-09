@@ -11,7 +11,8 @@ Action:
 - [ ] Compile succeeds with `POST /functions/compile`
 - [ ] Dryrun was started with `POST /functions/dryruns`
 - [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` with the expected action output
-- [ ] Deploy succeeds with `POST /functions/deployments` when requested
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
 
 Sync:
 - [ ] `references/syncs.md` was used for the sync pattern
@@ -27,4 +28,5 @@ Sync:
 - [ ] Compile succeeds with `POST /functions/compile`
 - [ ] Dryrun was started with `POST /functions/dryruns`
 - [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` and returns the expected change set
-- [ ] Deploy succeeds with `POST /functions/deployments` when requested
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
