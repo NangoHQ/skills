@@ -144,7 +144,7 @@ Use `!== undefined` so empty strings, `false`, and `0` are preserved.
 
 ## List actions
 
-Accept pagination as `cursor` input and return a next-cursor field in the API's majority casing. This example uses `next_cursor`; use `nextCursor` for camelCase APIs.
+Expose pagination as `cursor` plus a next-cursor field in the API's majority casing. This example uses `next_cursor`; use `nextCursor` for camelCase APIs.
 
 ```typescript
 const ListInput = z.object({

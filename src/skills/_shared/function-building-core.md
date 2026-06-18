@@ -97,7 +97,7 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- List actions should accept `cursor` input and return a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
+- List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
 ### Schema Semantics
