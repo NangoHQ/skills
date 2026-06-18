@@ -82,6 +82,7 @@ If any required external values are missing, ask a targeted question after check
 - Action outputs cannot exceed 2MB.
 - File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
+- Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
 
 ### Sync rules
 
@@ -104,8 +105,7 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input or params.
-- List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
+- List actions should accept `cursor` input and return a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
 ### Schema Semantics
@@ -307,7 +307,7 @@ Action:
 - [ ] Nango root verified
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and missing-value rules match the provider versus normalized contract
-- [ ] `createAction()` includes endpoint, input, output, and scopes when required
+- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
 - [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
