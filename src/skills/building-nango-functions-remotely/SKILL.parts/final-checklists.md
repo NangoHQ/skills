@@ -3,7 +3,7 @@
 Action:
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and the function stays self-contained in one file
-- [ ] `createAction()` includes endpoint, input, output, and scopes when required
+- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
 - [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures

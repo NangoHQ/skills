@@ -22,6 +22,7 @@
 
 Notes:
 - `input` is required. For no-input actions, use `z.object({})`.
+- Do not set `endpoint` in `createAction(...)`; it is deprecated. Trigger actions by action name through the SDK/API.
 - Do not import `ActionError`. Throw `new nango.ActionError(payload)` from the `nango` exec param.
 - Import `ProxyConfiguration` only if you annotate a variable.
 - This example uses snake_case. Rename fields for camelCase APIs.
@@ -48,11 +49,6 @@ const OutputSchema = z.object({
 const action = createAction({
     description: 'Brief single sentence',
     version: '1.0.0',
-    endpoint: {
-        method: 'GET',
-        path: '/user',
-        group: 'Users'
-    },
     input: InputSchema,
     output: OutputSchema,
     scopes: ['required.scope'],
