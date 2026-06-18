@@ -1,0 +1,33 @@
+src/skills/_shared/references/actions.md
+  s_e0ee3af84ce2c6::t_fe2c647a1d121e 147
+skills/building-nango-functions/references/actions.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 147
+skills/building-nango-functions-locally/SKILL.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 108
+skills/building-nango-functions/SKILL.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 112
+skills/building-nango-functions-remotely/references/actions.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 147
+src/skills/_shared/function-building-core.md
+  s_e0ee3af84ce2c6::t_fe2c647a1d121e 100
+skills/building-nango-functions-locally/references/actions.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 147
+skills/building-nango-functions-remotely/SKILL.md
+  s_e0ee3af84ce2c6::t_f72b998557a468 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "6f1d88d0f730d972d16feeb06ae4bd13a819b468",
+  "prompts": {},
+  "sessions": {
+    "s_e0ee3af84ce2c6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ed636-f715-7952-b330-fb7bf4ce6712",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Marcin Dobrowolski <marcindobry@hotmail.com>"
+    }
+  }
+}
