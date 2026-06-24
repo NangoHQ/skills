@@ -1,0 +1,8 @@
+{
+  "name": "nango",
+  "description": "Agent plugin that exposes Skills for building, testing, and migrating Nango functions.",
+  "version": "1.0.0",
+  "skills": "./skills",
+  "tags": ["nango", "integrations", "syncs", "actions", "agent-skills"],
+  "defaultPrompt": "Use the Nango Skills in this plugin to plan, build, test, or migrate Nango functions without exposing credentials, connector payloads, or customer data."
+}
