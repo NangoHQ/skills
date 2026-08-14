@@ -20,8 +20,13 @@ description: Migrates Nango syncs from deleteRecordsFromPreviousExecutions()/tra
 
 ## Checkpointed full refresh (multi-execution)
 
-- Call `trackDeletesStart('ModelName')` at the beginning of each execution in the refresh window (it is safe/idempotent while the window is open).
-- Call `trackDeletesEnd('ModelName')` only in the execution that finishes saving the full dataset.
+Full refresh syncs need a pagination `checkpoint` (page/cursor/offset) in addition to delete tracking. Nango syncs run inside a time-limited execution window; without a checkpoint, a run that does not finish in that window restarts from page 1 next time, wasting compute re-fetching the same early pages and never reaching the rest of the dataset.
+
+- Read the checkpoint first (`await nango.getCheckpoint()`), and resume pagination from it when present.
+- Call `trackDeletesStart('ModelName')` at the beginning of every execution in the refresh window. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
+- After each successful `batchSave()`, call `saveCheckpoint()` with the next page/cursor.
+- Call `clearCheckpoint()` only after the last page is saved.
+- Call `trackDeletesEnd('ModelName')` only after that `clearCheckpoint()` — i.e. only in the execution that finishes saving the full dataset.
 
 ## Tests
 
@@ -36,18 +41,35 @@ description: Migrates Nango syncs from deleteRecordsFromPreviousExecutions()/tra
 ```ts
 // Before
 for await (const page of nango.paginate(cfg)) {
-    await nango.batchSave(page, 'Ticket');
+  await nango.batchSave(page, "Ticket");
 }
-await nango.deleteRecordsFromPreviousExecutions('Ticket');
+await nango.deleteRecordsFromPreviousExecutions("Ticket");
 ```
 
 ```ts
 // After
-await nango.trackDeletesStart('Ticket');
+const checkpoint = await nango.getCheckpoint<{ page?: number }>();
+let page = checkpoint?.page ?? 1;
 
-for await (const page of nango.paginate(cfg)) {
-    await nango.batchSave(page, 'Ticket');
+await nango.trackDeletesStart("Ticket");
+
+for await (const results of nango.paginate({
+  ...cfg,
+  paginate: {
+    ...cfg.paginate,
+    offset_start_value: page,
+    on_page: async ({ nextPageParam }) => {
+      page = typeof nextPageParam === "number" ? nextPageParam : undefined;
+    },
+  },
+})) {
+  await nango.batchSave(results, "Ticket");
+
+  if (page !== undefined) {
+    await nango.saveCheckpoint({ page });
+  }
 }
 
-await nango.trackDeletesEnd('Ticket');
+await nango.clearCheckpoint();
+await nango.trackDeletesEnd("Ticket");
 ```

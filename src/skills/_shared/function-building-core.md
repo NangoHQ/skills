@@ -1,4 +1,5 @@
 ## Implementation Scope
+
 - Build or modify a Nango function implementation
 - Build an action in Nango with `createAction()`
 - Build a sync in Nango with `createSync()`
@@ -19,20 +20,25 @@ If the task is a sync, read `references/syncs.md` before writing code and state 
   - why checkpoints cannot work here
 
 Invalid sync implementations:
+
 - full refresh because it is simpler
 - `saveCheckpoint()` without `getCheckpoint()`
 - reading or saving a checkpoint without using it in request params or pagination state
 - using `syncType: 'incremental'` or `nango.lastSyncDate` in a new sync
+- a full refresh with no `checkpoint` schema, or one that is never saved after each page — the run restarts from page 1 whenever it exceeds the execution window
+- calling `trackDeletesEnd()` before `clearCheckpoint()`, or without a preceding `clearCheckpoint()` at all
 - using `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint (`modified_after`, `updated_after`, changed-records endpoint). Those requests omit unchanged rows, so `trackDeletesEnd()` will falsely delete them.
 - using `trackDeletesStart()` / `trackDeletesEnd()` in an incremental sync that already has explicit deleted-record events
 
 ## Choose the Path
 
 Action:
+
 - One-time request, user-triggered, built with `createAction()`
 - Read `references/actions.md` before writing code
 
 Sync:
+
 - Scheduled or webhook-driven cache updates built with `createSync()`
 - Complete the Sync Strategy Gate first
 - Read `references/syncs.md` before writing code
@@ -40,12 +46,14 @@ Sync:
 ## Required Inputs (Ask User if Missing)
 
 Always:
+
 - Integration ID (provider name)
 - Script/function name (kebab-case)
 - API reference URL or sample response
 - Connection ID if the active workflow will validate or dryrun the function
 
 Action-specific:
+
 - Use case summary
 - Input parameters
 - Output fields
@@ -53,6 +61,7 @@ Action-specific:
 - Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
 
 Sync-specific:
+
 - Model name (singular, PascalCase)
 - Frequency (every hour, every 5 minutes, etc.)
 - Checkpoint schema (timestamp, cursor, page token, offset/page, `since_id`, or composite)
@@ -86,9 +95,10 @@ If any required external values are missing, ask a targeted question after check
 - Prefer `batchDelete()` when the provider returns deletions, tombstones, or delete webhooks.
 - Use full refresh only if the provider cannot return changes, deletions, or resume state, or if the dataset is tiny.
 - For full refresh, cite the exact provider limitation from docs or payloads. "It is easier" is not enough.
-- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch/save.
+- Full refresh syncs still need a `checkpoint` schema (page/cursor/offset) covering pagination progress, not just incremental syncs. Nango syncs run inside a time-limited execution window; a full refresh with no checkpoint restarts from page 1 on every run that exceeds the window, wasting compute re-fetching the same early pages and never reaching the rest.
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
-- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes the full window.
+- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
 - If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
 
 ### Conventions
@@ -119,15 +129,15 @@ Mapping example (API expects a different parameter name):
 
 ```typescript
 const InputSchema = z.object({
-    userId: z.string()
+  userId: z.string(),
 });
 
 const config: ProxyConfiguration = {
-    endpoint: 'users.info',
-    params: {
-        user: input.userId
-    },
-    retries: 3
+  endpoint: "users.info",
+  params: {
+    user: input.userId,
+  },
+  retries: 3,
 };
 ```
 
@@ -139,6 +149,7 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
+
 - Functions runtime SDK reference: https://nango.dev/docs/reference/functions
 - Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
@@ -150,6 +161,7 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 ## When API Docs Do Not Render
 
 If web fetching returns incomplete docs (JS-rendered):
+
 - Ask the user for a sample response
 - Use existing Nango actions or syncs in the workspace as a pattern when they exist
 - Use the skill-specific validation or dryrun workflow until it passes

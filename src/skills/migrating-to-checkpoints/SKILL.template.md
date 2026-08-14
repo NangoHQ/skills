@@ -114,18 +114,21 @@ Invalid: `await getAndSaveUsers(nango)` that only calls `batchSave` inside the l
 
 ## Full Refresh With Checkpoints
 
-Use this only when the API cannot return changed rows but can resume pagination. The checkpoint is for failure recovery, not incremental filtering.
+Use this only when the API cannot return changed rows but can resume pagination. The checkpoint is for failure recovery, not incremental filtering — and it is mandatory, not optional. Nango syncs run inside a time-limited execution window. Without a checkpoint, a full refresh that does not finish in that window restarts from page 1 on the next run, re-fetching the same early pages every time and never reaching the rest of the dataset.
 
 - Read the saved cursor/page before fetching.
+- Call `trackDeletesStart()` on every execution of the refresh. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
+- Start pagination from the saved cursor/page when the checkpoint is present.
 - After each successful `batchSave()`, call `saveCheckpoint()` with the next cursor/page (same loop body—never only at the end of `exec`).
 - Call `clearCheckpoint()` only after the last page is saved.
+- Call `trackDeletesEnd()` only after that `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished the full dataset.
 - On the next scheduled run, a cleared checkpoint makes the sync start from the beginning again.
 
 ## Delete Handling
 
 - If the provider exposes deleted records, tombstones, or delete webhooks, call `batchDelete()` for those IDs using the same checkpoint window.
 - If delete detection requires comparing the full dataset, use full refresh: call `trackDeletesStart('Model')` before fetching/saving and `trackDeletesEnd('Model')` only after the full dataset is saved and the checkpoint is cleared.
-- In a checkpointed full refresh that spans multiple executions, `trackDeletesStart()` can run at the start of each execution; `trackDeletesEnd()` belongs only in the execution that completes the full refresh.
+- In a checkpointed full refresh that spans multiple executions, `trackDeletesStart()` can run at the start of each execution — it is safe/idempotent and will not overwrite the start of an already-open window. `trackDeletesEnd()` belongs only in the execution that completes the full refresh and clears the checkpoint.
 - Remove `deleteRecordsFromPreviousExecutions()`. It is incompatible with checkpointed syncs.
 
 ## Test
@@ -148,7 +151,8 @@ Use `--metadata` when the sync needs metadata, tailor the `--checkpoint` payload
 - [ ] `getCheckpoint()` is called before provider requests
 - [ ] Saved checkpoint changes the next provider request or resume state
 - [ ] Every `batchSave()`/`batchUpdate()`/`batchDelete()` that advances progress is immediately followed by `saveCheckpoint()` in the same loop (including inside `nango.paginate` and pagination helpers—not only once after `exec` returns)
-- [ ] Full refresh syncs call `clearCheckpoint()` only after successful completion
+- [ ] Full refresh syncs have a checkpoint schema, resume pagination from it, save it after every page, and call `clearCheckpoint()` only after successful completion of the last page
+- [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, in the execution that finishes the last page
 - [ ] Delete handling matches the sync type: `batchDelete()` for explicit provider deletes, `trackDeletesStart/End` only for full refresh
 - [ ] Dryrun was tested with a realistic `--checkpoint`
 
