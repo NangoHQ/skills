@@ -5,3 +5,4 @@
 - Resolve `NANGO_SECRET_KEY` before calling remote endpoints.
 - Use the environment bound to that secret key.
 - Keep the function self-contained in one TypeScript file unless you have direct evidence that the remote endpoint accepts multi-file payloads.
+- Do NOT create or modify any files in the current project/directory. If you need to create files, use a temp folder

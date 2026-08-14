@@ -12,5 +12,6 @@ Rules:
 - Send `Authorization: Bearer <NANGO_SECRET_KEY>` and `Content-Type: application/json`.
 - Do not send query params unless the API docs or an existing caller prove they are supported.
 - Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
-- For actions, dryrun should include `test_input` and `metadata` only when needed.
+- For actions, dryrun should include `input` and `metadata` only when needed.
 - For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
+- Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result, but it does not record local mocks.

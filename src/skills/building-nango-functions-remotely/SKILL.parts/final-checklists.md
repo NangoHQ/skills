@@ -24,6 +24,7 @@ Sync:
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
 - [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
+- [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] The function stays self-contained in one file unless the remote API proves multi-file support
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
 - [ ] Compile succeeds with `POST /remote-function/compile`

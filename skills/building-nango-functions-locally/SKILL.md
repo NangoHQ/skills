@@ -81,7 +81,7 @@ If any required external values are missing, ask a targeted question after check
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
-- HTTP retries default to `0`; set `retries` deliberately, especially for writes.
+- HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
 
 ### Sync rules
 
@@ -250,6 +250,31 @@ Required loop:
 5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
 6. Run `nango generate:tests`, then `npm test`.
 
+Examples:
+
+```bash
+# Validate an action
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Validate a no-input action
+nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
+
+# Validate a sync
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
+
+# Validate a resumed sync with a checkpoint
+nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
+
+# Record action mocks after validation passes
+nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Record sync mocks after validation passes
+nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
+
+# Stub metadata when needed
+nango dryrun <script-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --metadata '{"team_id":"123"}'
+```
+
 Hard rules:
 - Treat `<script-name>.test.json` as generated output. Never create, edit, rename, or move it.
 - If mocks are wrong or stale, fix the code and re-record with `--save`.
@@ -302,6 +327,7 @@ Sync:
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
 - [ ] Raw provider schemas model omitted versus `null` correctly, and fields use passthrough casing or the API's majority casing
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
+- [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
 - [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
 - [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
