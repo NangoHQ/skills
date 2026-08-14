@@ -30,6 +30,8 @@ Invalid sync implementations:
 - `saveCheckpoint()` without `getCheckpoint()`
 - reading or saving a checkpoint without using it in request params or pagination state
 - using `syncType: 'incremental'` or `nango.lastSyncDate` in a new sync
+- a full refresh with no `checkpoint` schema, or one that is never saved after each page — the run restarts from page 1 whenever it exceeds the execution window
+- calling `trackDeletesEnd()` before `clearCheckpoint()`, or without a preceding `clearCheckpoint()` at all
 - using `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint (`modified_after`, `updated_after`, changed-records endpoint). Those requests omit unchanged rows, so `trackDeletesEnd()` will falsely delete them.
 - using `trackDeletesStart()` / `trackDeletesEnd()` in an incremental sync that already has explicit deleted-record events
 
@@ -91,9 +93,10 @@ If any required external values are missing, ask a targeted question after check
 - Prefer `batchDelete()` when the provider returns deletions, tombstones, or delete webhooks.
 - Use full refresh only if the provider cannot return changes, deletions, or resume state, or if the dataset is tiny.
 - For full refresh, cite the exact provider limitation from docs or payloads. "It is easier" is not enough.
-- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch/save.
+- Full refresh syncs still need a `checkpoint` schema (page/cursor/offset) covering pagination progress, not just incremental syncs. Nango syncs run inside a time-limited execution window; a full refresh with no checkpoint restarts from page 1 on every run that exceeds the window, wasting compute re-fetching the same early pages and never reaching the rest.
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
-- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes the full window.
+- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
 
 ### Conventions
 
@@ -199,6 +202,7 @@ Rules:
 ## Final Checklists
 
 Action:
+
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and the function stays self-contained in one file
 - [ ] `createAction()` includes endpoint, input, output, and scopes when required
@@ -211,6 +215,7 @@ Action:
 - [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
 
 Sync:
+
 - [ ] `references/syncs.md` was used for the sync pattern
 - [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters
 - [ ] Incremental was chosen first, with a checkpoint schema unless full refresh is explicitly justified from docs or payloads
@@ -218,6 +223,8 @@ Sync:
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
 - [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
+- [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
+- [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
 - [ ] The function stays self-contained in one file unless the remote API proves multi-file support
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
 - [ ] Compile succeeds with `POST /remote-function/compile`

@@ -1,6 +1,7 @@
 # Syncs Reference
 
 ## Contents
+
 - Required planning output
 - Schema and casing rules
 - Base template
@@ -17,6 +18,7 @@
 ## Required planning output
 
 Before writing a sync, state:
+
 - change source: `updated_at`, `modified_since`, changed-records endpoint, cursor, page token, offset/page, `since_id`, or webhook
 - checkpoint schema
 - how the checkpoint changes the request or resume state
@@ -34,53 +36,54 @@ Webhook note: `onWebhook` handlers usually do not checkpoint. If the sync also p
 
 ```typescript
 const ProviderRecordSchema = z.object({
-    id: z.string(),
-    name: z.string().nullable(),
-    updated_at: z.string(),
-    archived_at: z.string().optional()
+  id: z.string(),
+  name: z.string().nullable(),
+  updated_at: z.string(),
+  archived_at: z.string().optional(),
 });
 
 const RecordSchema = z.object({
-    id: z.string(),
-    name: z.string().optional(),
-    updated_at: z.string(),
-    archived_at: z.string().optional()
+  id: z.string(),
+  name: z.string().optional(),
+  updated_at: z.string(),
+  archived_at: z.string().optional(),
 });
 ```
 
 ## Base template
 
 ```typescript
-import { createSync } from 'nango';
-import { z } from 'zod';
+import { createSync } from "nango";
+import { z } from "zod";
 
 const RecordSchema = z.object({
-    id: z.string(),
-    name: z.string().optional(),
-    updated_at: z.string()
+  id: z.string(),
+  name: z.string().optional(),
+  updated_at: z.string(),
 });
 
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional()
+  updated_after: z.string().optional(),
 });
 
 const sync = createSync({
-    description: 'Brief single sentence',
-    version: '1.0.0',
-    frequency: 'every 5 minutes',
-    autoStart: true,
-    checkpoint: CheckpointSchema,
-    models: {
-        Record: RecordSchema
-    },
+  description: "Brief single sentence",
+  version: "1.0.0",
+  frequency: "every 5 minutes",
+  autoStart: true,
+  checkpoint: CheckpointSchema,
+  models: {
+    Record: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
-        // Use checkpoint values in request params or resume state.
-    }
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+    // Use checkpoint values in request params or resume state.
+  },
 });
 
-export type NangoSyncLocal = Parameters<(typeof sync)['exec']>[0];
+export type NangoSyncLocal = Parameters<(typeof sync)["exec"]>[0];
 export default sync;
 ```
 
@@ -90,47 +93,52 @@ Use this when the provider can filter records changed since a timestamp.
 
 ```typescript
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional()
+  updated_after: z.string().optional(),
 });
 
 const sync = createSync({
-    frequency: 'every 5 minutes',
-    checkpoint: CheckpointSchema,
-    models: {
-        Contact: RecordSchema
-    },
+  frequency: "every 5 minutes",
+  checkpoint: CheckpointSchema,
+  models: {
+    Contact: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/contacts',
-            params: {
-                sort: 'updated_at:asc',
-                ...(checkpoint?.updated_after && { updated_after: checkpoint.updated_after })
-            },
-            paginate: { limit: 100 },
-            retries: 3
-        };
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/contacts",
+      params: {
+        sort: "updated_at:asc",
+        ...(checkpoint?.updated_after && {
+          updated_after: checkpoint.updated_after,
+        }),
+      },
+      paginate: { limit: 100 },
+      retries: 3,
+    };
 
-        for await (const page of nango.paginate(proxyConfig)) {
-            const contacts = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
-                id: record.id,
-                ...(record.name != null && { name: record.name }),
-                updated_at: record.updated_at
-            }));
+    for await (const page of nango.paginate(proxyConfig)) {
+      const contacts = page.map(
+        (record: { id: string; name?: string | null; updated_at: string }) => ({
+          id: record.id,
+          ...(record.name != null && { name: record.name }),
+          updated_at: record.updated_at,
+        }),
+      );
 
-            if (contacts.length === 0) {
-                continue;
-            }
+      if (contacts.length === 0) {
+        continue;
+      }
 
-            await nango.batchSave(contacts, 'Contact');
-            await nango.saveCheckpoint({
-                updated_after: contacts[contacts.length - 1].updated_at
-            });
-        }
+      await nango.batchSave(contacts, "Contact");
+      await nango.saveCheckpoint({
+        updated_after: contacts[contacts.length - 1].updated_at,
+      });
     }
+  },
 });
 ```
 
@@ -138,21 +146,21 @@ If the provider exposes a deleted-record endpoint, use the same checkpoint value
 
 ```typescript
 if (checkpoint?.updated_after) {
-    const deleted = await nango.get({
-        // https://api-docs-url
-        endpoint: '/v1/contacts/deleted',
-        params: {
-            updated_after: checkpoint.updated_after
-        },
-        retries: 3
-    });
+  const deleted = await nango.get({
+    // https://api-docs-url
+    endpoint: "/v1/contacts/deleted",
+    params: {
+      updated_after: checkpoint.updated_after,
+    },
+    retries: 3,
+  });
 
-    if (deleted.data.items.length > 0) {
-        await nango.batchDelete(
-            deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
-            'Contact'
-        );
-    }
+  if (deleted.data.items.length > 0) {
+    await nango.batchDelete(
+      deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
+      "Contact",
+    );
+  }
 }
 ```
 
@@ -162,72 +170,74 @@ Use this when the provider exposes a delta endpoint such as `/changes`, `/events
 
 ```typescript
 const CheckpointSchema = z.object({
-    cursor: z.string().optional()
+  cursor: z.string().optional(),
 });
 
 type Change = {
-    id: string;
-    name?: string | null;
-    updated_at?: string;
-    deleted_at?: string;
+  id: string;
+  name?: string | null;
+  updated_at?: string;
+  deleted_at?: string;
 };
 
 const sync = createSync({
-    frequency: 'every 5 minutes',
-    checkpoint: CheckpointSchema,
-    models: {
-        Contact: RecordSchema
-    },
+  frequency: "every 5 minutes",
+  checkpoint: CheckpointSchema,
+  models: {
+    Contact: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
-        let cursor = checkpoint?.cursor;
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+    let cursor = checkpoint?.cursor;
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/contacts/changes',
-            params: {
-                ...(cursor && { cursor })
-            },
-            paginate: {
-                type: 'cursor',
-                cursor_name_in_request: 'cursor',
-                cursor_path_in_response: 'next_cursor',
-                response_path: 'items',
-                on_page: async ({ nextPageParam, response }) => {
-                    cursor = (response.data.cursor as string | undefined) ?? (typeof nextPageParam === 'string' ? nextPageParam : undefined);
-                }
-            },
-            retries: 3
-        };
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/contacts/changes",
+      params: {
+        ...(cursor && { cursor }),
+      },
+      paginate: {
+        type: "cursor",
+        cursor_name_in_request: "cursor",
+        cursor_path_in_response: "next_cursor",
+        response_path: "items",
+        on_page: async ({ nextPageParam, response }) => {
+          cursor =
+            (response.data.cursor as string | undefined) ??
+            (typeof nextPageParam === "string" ? nextPageParam : undefined);
+        },
+      },
+      retries: 3,
+    };
 
-        for await (const changes of nango.paginate<Change>(proxyConfig)) {
+    for await (const changes of nango.paginate<Change>(proxyConfig)) {
+      const upserts = changes
+        .filter((change) => !change.deleted_at)
+        .map((change) => ({
+          id: change.id,
+          ...(change.name != null && { name: change.name }),
+          updated_at: change.updated_at ?? new Date().toISOString(),
+        }));
 
-            const upserts = changes
-                .filter((change) => !change.deleted_at)
-                .map((change) => ({
-                    id: change.id,
-                    ...(change.name != null && { name: change.name }),
-                    updated_at: change.updated_at ?? new Date().toISOString()
-                }));
+      const deletions = changes
+        .filter((change) => Boolean(change.deleted_at))
+        .map((change) => ({ id: change.id }));
 
-            const deletions = changes
-                .filter((change) => Boolean(change.deleted_at))
-                .map((change) => ({ id: change.id }));
+      if (upserts.length > 0) {
+        await nango.batchSave(upserts, "Contact");
+      }
 
-            if (upserts.length > 0) {
-                await nango.batchSave(upserts, 'Contact');
-            }
+      if (deletions.length > 0) {
+        await nango.batchDelete(deletions, "Contact");
+      }
 
-            if (deletions.length > 0) {
-                await nango.batchDelete(deletions, 'Contact');
-            }
-
-            if (cursor !== undefined) {
-                await nango.saveCheckpoint({ cursor });
-            }
-        }
+      if (cursor !== undefined) {
+        await nango.saveCheckpoint({ cursor });
+      }
     }
+  },
 });
 ```
 
@@ -239,47 +249,50 @@ Use this only when the provider guarantees a monotonic identifier or event seque
 
 ```typescript
 const CheckpointSchema = z.object({
-    last_id: z.string().optional()
+  last_id: z.string().optional(),
 });
 
 const sync = createSync({
-    frequency: 'every 5 minutes',
-    checkpoint: CheckpointSchema,
-    models: {
-        Invoice: RecordSchema
-    },
+  frequency: "every 5 minutes",
+  checkpoint: CheckpointSchema,
+  models: {
+    Invoice: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/invoices',
-            params: {
-                sort: 'id:asc',
-                ...(checkpoint?.last_id && { since_id: checkpoint.last_id })
-            },
-            paginate: { limit: 100 },
-            retries: 3
-        };
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/invoices",
+      params: {
+        sort: "id:asc",
+        ...(checkpoint?.last_id && { since_id: checkpoint.last_id }),
+      },
+      paginate: { limit: 100 },
+      retries: 3,
+    };
 
-        for await (const page of nango.paginate(proxyConfig)) {
-            const invoices = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
-                id: record.id,
-                ...(record.name != null && { name: record.name }),
-                updated_at: record.updated_at
-            }));
+    for await (const page of nango.paginate(proxyConfig)) {
+      const invoices = page.map(
+        (record: { id: string; name?: string | null; updated_at: string }) => ({
+          id: record.id,
+          ...(record.name != null && { name: record.name }),
+          updated_at: record.updated_at,
+        }),
+      );
 
-            if (invoices.length === 0) {
-                continue;
-            }
+      if (invoices.length === 0) {
+        continue;
+      }
 
-            await nango.batchSave(invoices, 'Invoice');
-            await nango.saveCheckpoint({
-                last_id: invoices[invoices.length - 1].id
-            });
-        }
+      await nango.batchSave(invoices, "Invoice");
+      await nango.saveCheckpoint({
+        last_id: invoices[invoices.length - 1].id,
+      });
     }
+  },
 });
 ```
 
@@ -289,69 +302,75 @@ Use a composite checkpoint when the provider filters by time but also requires a
 
 ```typescript
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional(),
-    page_token: z.string().optional()
+  updated_after: z.string().optional(),
+  page_token: z.string().optional(),
 });
 
 const sync = createSync({
-    frequency: 'every 5 minutes',
-    checkpoint: CheckpointSchema,
-    models: {
-        Task: RecordSchema
-    },
+  frequency: "every 5 minutes",
+  checkpoint: CheckpointSchema,
+  models: {
+    Task: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
-        let updatedAfter = checkpoint?.updated_after;
-        let pageToken = checkpoint?.page_token;
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+    let updatedAfter = checkpoint?.updated_after;
+    let pageToken = checkpoint?.page_token;
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/tasks',
-            params: {
-                sort: 'updated_at:asc',
-                ...(updatedAfter && { updated_after: updatedAfter }),
-                ...(pageToken && { page_token: pageToken })
-            },
-            paginate: {
-                type: 'cursor',
-                cursor_name_in_request: 'page_token',
-                cursor_path_in_response: 'next_page_token',
-                response_path: 'items',
-                limit_name_in_request: 'limit',
-                limit: 100,
-                on_page: async ({ nextPageParam }) => {
-                    pageToken = typeof nextPageParam === 'string' ? nextPageParam : undefined;
-                }
-            },
-            retries: 3
-        };
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/tasks",
+      params: {
+        sort: "updated_at:asc",
+        ...(updatedAfter && { updated_after: updatedAfter }),
+        ...(pageToken && { page_token: pageToken }),
+      },
+      paginate: {
+        type: "cursor",
+        cursor_name_in_request: "page_token",
+        cursor_path_in_response: "next_page_token",
+        response_path: "items",
+        limit_name_in_request: "limit",
+        limit: 100,
+        on_page: async ({ nextPageParam }) => {
+          pageToken =
+            typeof nextPageParam === "string" ? nextPageParam : undefined;
+        },
+      },
+      retries: 3,
+    };
 
-        for await (const page of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
-            const tasks = page.map((record) => ({
-                id: record.id,
-                ...(record.name != null && { name: record.name }),
-                updated_at: record.updated_at
-            }));
+    for await (const page of nango.paginate<{
+      id: string;
+      name?: string | null;
+      updated_at: string;
+    }>(proxyConfig)) {
+      const tasks = page.map((record) => ({
+        id: record.id,
+        ...(record.name != null && { name: record.name }),
+        updated_at: record.updated_at,
+      }));
 
-            if (tasks.length === 0) {
-                continue;
-            }
+      if (tasks.length === 0) {
+        continue;
+      }
 
-            await nango.batchSave(tasks, 'Task');
+      await nango.batchSave(tasks, "Task");
 
-            if (pageToken) {
-                await nango.saveCheckpoint({
-                    ...(updatedAfter && { updated_after: updatedAfter }),
-                    page_token: pageToken
-                });
-                continue;
-            }
+      if (pageToken) {
+        await nango.saveCheckpoint({
+          ...(updatedAfter && { updated_after: updatedAfter }),
+          page_token: pageToken,
+        });
+        continue;
+      }
 
-            updatedAfter = tasks[tasks.length - 1].updated_at;
-            await nango.saveCheckpoint({ updated_after: updatedAfter });
-        }
+      updatedAfter = tasks[tasks.length - 1].updated_at;
+      await nango.saveCheckpoint({ updated_after: updatedAfter });
     }
+  },
 });
 ```
 
@@ -363,80 +382,85 @@ Use a composite checkpoint when the provider filters by time but paginates with 
 
 ```typescript
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional(),
-    page: z.number().int().positive().optional()
+  updated_after: z.string().optional(),
+  page: z.number().int().positive().optional(),
 });
 
 const sync = createSync({
-    frequency: 'every 5 minutes',
-    checkpoint: CheckpointSchema,
-    models: {
-        Lead: RecordSchema
-    },
+  frequency: "every 5 minutes",
+  checkpoint: CheckpointSchema,
+  models: {
+    Lead: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
-        let updatedAfter = checkpoint?.updated_after;
-        let page: number | undefined = checkpoint?.page ?? 1;
-        let lastProcessedUpdatedAt: string | undefined;
+  exec: async (nango) => {
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+    let updatedAfter = checkpoint?.updated_after;
+    let page: number | undefined = checkpoint?.page ?? 1;
+    let lastProcessedUpdatedAt: string | undefined;
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/leads',
-            params: {
-                sort: 'updated_at:asc',
-                ...(updatedAfter && { modified_since: updatedAfter })
-            },
-            paginate: {
-                type: 'offset',
-                offset_name_in_request: 'page',
-                offset_start_value: page ?? 1,
-                offset_calculation_method: 'per-page',
-                limit_name_in_request: 'per_page',
-                limit: 100,
-                response_path: 'items',
-                on_page: async ({ nextPageParam }) => {
-                    page = typeof nextPageParam === 'number' ? nextPageParam : undefined;
-                }
-            },
-            retries: 3
-        };
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/leads",
+      params: {
+        sort: "updated_at:asc",
+        ...(updatedAfter && { modified_since: updatedAfter }),
+      },
+      paginate: {
+        type: "offset",
+        offset_name_in_request: "page",
+        offset_start_value: page ?? 1,
+        offset_calculation_method: "per-page",
+        limit_name_in_request: "per_page",
+        limit: 100,
+        response_path: "items",
+        on_page: async ({ nextPageParam }) => {
+          page = typeof nextPageParam === "number" ? nextPageParam : undefined;
+        },
+      },
+      retries: 3,
+    };
 
-        for await (const pageResults of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
-            const leads = pageResults.map((record) => ({
-                id: record.id,
-                ...(record.name != null && { name: record.name }),
-                updated_at: record.updated_at
-            }));
+    for await (const pageResults of nango.paginate<{
+      id: string;
+      name?: string | null;
+      updated_at: string;
+    }>(proxyConfig)) {
+      const leads = pageResults.map((record) => ({
+        id: record.id,
+        ...(record.name != null && { name: record.name }),
+        updated_at: record.updated_at,
+      }));
 
-            if (leads.length === 0) {
-                if (page === undefined && lastProcessedUpdatedAt) {
-                    await nango.saveCheckpoint({
-                        updated_after: lastProcessedUpdatedAt,
-                        page: 1
-                    });
-                }
-                continue;
-            }
-
-            await nango.batchSave(leads, 'Lead');
-            lastProcessedUpdatedAt = leads[leads.length - 1].updated_at;
-
-            if (page !== undefined) {
-                await nango.saveCheckpoint({
-                    ...(updatedAfter && { updated_after: updatedAfter }),
-                    page
-                });
-                continue;
-            }
-
-            updatedAfter = lastProcessedUpdatedAt;
-            await nango.saveCheckpoint({
-                updated_after: updatedAfter,
-                page: 1
-            });
+      if (leads.length === 0) {
+        if (page === undefined && lastProcessedUpdatedAt) {
+          await nango.saveCheckpoint({
+            updated_after: lastProcessedUpdatedAt,
+            page: 1,
+          });
         }
+        continue;
+      }
+
+      await nango.batchSave(leads, "Lead");
+      lastProcessedUpdatedAt = leads[leads.length - 1].updated_at;
+
+      if (page !== undefined) {
+        await nango.saveCheckpoint({
+          ...(updatedAfter && { updated_after: updatedAfter }),
+          page,
+        });
+        continue;
+      }
+
+      updatedAfter = lastProcessedUpdatedAt;
+      await nango.saveCheckpoint({
+        updated_after: updatedAfter,
+        page: 1,
+      });
     }
+  },
 });
 ```
 
@@ -448,19 +472,21 @@ Deleted-record endpoint:
 
 ```typescript
 const deleted = await nango.get({
-    // https://api-docs-url
-    endpoint: '/v1/tasks/deleted',
-    params: {
-        ...(checkpoint?.updated_after && { updated_after: checkpoint.updated_after })
-    },
-    retries: 3
+  // https://api-docs-url
+  endpoint: "/v1/tasks/deleted",
+  params: {
+    ...(checkpoint?.updated_after && {
+      updated_after: checkpoint.updated_after,
+    }),
+  },
+  retries: 3,
 });
 
 if (deleted.data.items.length > 0) {
-    await nango.batchDelete(
-        deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
-        'Task'
-    );
+  await nango.batchDelete(
+    deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
+    "Task",
+  );
 }
 ```
 
@@ -468,11 +494,11 @@ Deleted flag in the change feed:
 
 ```typescript
 const deletions = changes
-    .filter((change) => Boolean(change.deleted_at))
-    .map((change) => ({ id: change.id }));
+  .filter((change) => Boolean(change.deleted_at))
+  .map((change) => ({ id: change.id }));
 
 if (deletions.length > 0) {
-    await nango.batchDelete(deletions, 'Task');
+  await nango.batchDelete(deletions, "Task");
 }
 ```
 
@@ -480,41 +506,79 @@ if (deletions.length > 0) {
 
 Use full refresh only when the provider truly cannot return changes, deletions, or resumable state. State the blocker explicitly before using this pattern.
 
+Full refresh syncs still need a `checkpoint` schema. Nango syncs run inside an execution window with a time limit. If a full refresh does not finish within that window and has no checkpoint, the next run restarts from page one, re-fetching the same early pages every time and never reaching the rest of the dataset. Always:
+
+- Read the checkpoint first. Call `trackDeletesStart()` on every execution — it is safe to call repeatedly and will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
+- Start pagination from the saved checkpoint when one exists.
+- Call `saveCheckpoint()` with the next page/cursor after every `batchSave()`, not only at the end of `exec`.
+- Call `clearCheckpoint()` only once the last page has been saved.
+- Call `trackDeletesEnd()` only after `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished walking the full dataset.
+
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
 
 ```typescript
+const CheckpointSchema = z.object({
+  page: z.number().int().positive().optional(),
+});
+
 const sync = createSync({
-    frequency: 'every hour',
-    models: {
-        Record: RecordSchema
-    },
+  frequency: "every hour",
+  checkpoint: CheckpointSchema,
+  models: {
+    Record: RecordSchema,
+  },
 
-    exec: async (nango) => {
-        // Blocker: provider only exposes /v1/records with no changed-since filter,
-        // no deleted-record endpoint, and no resumable cursor.
-        await nango.trackDeletesStart('Record');
+  exec: async (nango) => {
+    // Blocker: provider only exposes /v1/records with no changed-since filter,
+    // no deleted-record endpoint, and no resumable cursor.
+    const checkpoint =
+      await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+    let page: number | undefined = checkpoint?.page ?? 1;
 
-        const proxyConfig = {
-            // https://api-docs-url
-            endpoint: '/v1/records',
-            paginate: { limit: 100 },
-            retries: 3
-        };
+    await nango.trackDeletesStart("Record");
 
-        for await (const page of nango.paginate(proxyConfig)) {
-            const records = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
-                id: record.id,
-                ...(record.name != null && { name: record.name }),
-                updated_at: record.updated_at
-            }));
+    const proxyConfig = {
+      // https://api-docs-url
+      endpoint: "/v1/records",
+      paginate: {
+        type: "offset",
+        offset_name_in_request: "page",
+        offset_start_value: page,
+        offset_calculation_method: "per-page",
+        limit_name_in_request: "limit",
+        limit: 100,
+        response_path: "items",
+        on_page: async ({ nextPageParam }) => {
+          page = typeof nextPageParam === "number" ? nextPageParam : undefined;
+        },
+      },
+      retries: 3,
+    };
 
-            if (records.length > 0) {
-                await nango.batchSave(records, 'Record');
-            }
-        }
+    for await (const pageResults of nango.paginate(proxyConfig)) {
+      const records = pageResults.map((record) => ({
+        id: record.id,
+        ...(record.name != null && { name: record.name }),
+        updated_at: record.updated_at,
+      }));
 
-        await nango.trackDeletesEnd('Record');
+      if (records.length > 0) {
+        await nango.batchSave(records, "Record");
+      }
+
+      // Save pagination progress after every page. Without this, a run that
+      // exceeds the execution window restarts from page 1 next time instead of
+      // resuming where it left off.
+      if (page !== undefined) {
+        await nango.saveCheckpoint({ page });
+      }
     }
+
+    // Clear the checkpoint only after the last page has been saved, then close the
+    // delete-tracking window opened by trackDeletesStart().
+    await nango.clearCheckpoint();
+    await nango.trackDeletesEnd("Record");
+  },
 });
 ```
 
@@ -530,17 +594,18 @@ Bad example: the checkpoint is read and saved, but it never changes the provider
 const checkpoint = await nango.getCheckpoint<{ updated_after?: string }>();
 
 const response = await nango.get({
-    endpoint: '/v1/contacts',
-    retries: 3
+  endpoint: "/v1/contacts",
+  retries: 3,
 });
 
-await nango.batchSave(response.data.items, 'Contact');
+await nango.batchSave(response.data.items, "Contact");
 await nango.saveCheckpoint({
-    updated_after: new Date().toISOString()
+  updated_after: new Date().toISOString(),
 });
 ```
 
 Why this is invalid:
+
 - the next run still fetches the full dataset
 - failures cannot resume from the saved state
 - delete handling is disconnected from the saved progress
@@ -552,22 +617,44 @@ Bad example: a changed-only checkpoint is combined with `trackDeletesStart()` / 
 ```typescript
 const checkpoint = await nango.getCheckpoint<{ modified_after?: string }>();
 
-await nango.trackDeletesStart('Contact');
+await nango.trackDeletesStart("Contact");
 
 const response = await nango.get({
-    endpoint: '/v1/contacts',
-    params: checkpoint?.modified_after ? { modified_after: checkpoint.modified_after } : {},
-    retries: 3
+  endpoint: "/v1/contacts",
+  params: checkpoint?.modified_after
+    ? { modified_after: checkpoint.modified_after }
+    : {},
+  retries: 3,
 });
 
-await nango.batchSave(response.data.items, 'Contact');
+await nango.batchSave(response.data.items, "Contact");
 await nango.saveCheckpoint({
-    modified_after: new Date().toISOString()
+  modified_after: new Date().toISOString(),
 });
-await nango.trackDeletesEnd('Contact');
+await nango.trackDeletesEnd("Contact");
 ```
 
 Why this is invalid:
+
 - the endpoint returns only changed contacts
 - unchanged contacts are absent from this execution
 - `trackDeletesEnd()` will delete those unchanged contacts as if they disappeared at the provider
+
+Bad example: a full refresh with no checkpoint.
+
+```typescript
+await nango.trackDeletesStart("Record");
+
+for await (const page of nango.paginate(proxyConfig)) {
+  const records = page.map(mapRecord);
+  await nango.batchSave(records, "Record");
+}
+
+await nango.trackDeletesEnd("Record");
+```
+
+Why this is invalid:
+
+- a run that exceeds the execution window loses all pagination progress
+- the next run restarts from page 1, wasting compute re-fetching the same early pages
+- later pages may never be reached, and each run's `trackDeletesEnd()` then falsely deletes the records on those unreached pages
