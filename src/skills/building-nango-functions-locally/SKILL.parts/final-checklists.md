@@ -25,6 +25,8 @@ Sync:
 - [ ] Raw provider schemas model omitted versus `null` correctly, and fields use passthrough casing or the API's majority casing
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
+- [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
+- [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
 - [ ] Metadata handled if required
 - [ ] Registered in `index.ts`
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`
