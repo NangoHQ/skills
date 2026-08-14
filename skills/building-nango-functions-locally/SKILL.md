@@ -1,15 +1,18 @@
 ---
 name: building-nango-functions-locally
-description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy. Use when creating or updating Nango actions or syncs locally.
+description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy via CLI. Use when creating, updating, validating, testing, or deploying Nango actions or syncs locally in a repo. This content overlaps with building-nango-functions but adds CLI workflow details, so load this instead of building-nango-functions whenever a local project, local files, Nango root, CLI, dryrun, generated tests, or nango deploy workflow is indicated.
 ---
 
 # Build Nango Functions Locally
+
 Build deployable Nango actions and syncs in a checked-out Nango project with the local CLI validation and test workflow.
 
-## When to use
-- User wants to build or modify a Nango function
-- User wants to build an action in Nango
-- User wants to build a sync in Nango
+## Implementation Scope
+
+- Build or modify a Nango function implementation
+- Build an action in Nango with `createAction()`
+- Build a sync in Nango with `createSync()`
+- Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
 ## Sync Strategy Gate (required before writing code)
 
@@ -26,6 +29,7 @@ If the task is a sync, read `references/syncs.md` before writing code and state 
   - why checkpoints cannot work here
 
 Invalid sync implementations:
+
 - full refresh because it is simpler
 - `saveCheckpoint()` without `getCheckpoint()`
 - reading or saving a checkpoint without using it in request params or pagination state
@@ -38,10 +42,12 @@ Invalid sync implementations:
 ## Choose the Path
 
 Action:
+
 - One-time request, user-triggered, built with `createAction()`
 - Read `references/actions.md` before writing code
 
 Sync:
+
 - Scheduled or webhook-driven cache updates built with `createSync()`
 - Complete the Sync Strategy Gate first
 - Read `references/syncs.md` before writing code
@@ -49,19 +55,22 @@ Sync:
 ## Required Inputs (Ask User if Missing)
 
 Always:
+
 - Integration ID (provider name)
-- Connection ID (for validation or dryrun)
 - Script/function name (kebab-case)
 - API reference URL or sample response
+- Connection ID if the active workflow will validate or dryrun the function
 
 Action-specific:
+
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON for validation/dryrun (required; use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
 
 Sync-specific:
+
 - Model name (singular, PascalCase)
 - Frequency (every hour, every 5 minutes, etc.)
 - Checkpoint schema (timestamp, cursor, page token, offset/page, `since_id`, or composite)
@@ -81,7 +90,9 @@ If any required external values are missing, ask a targeted question after check
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
+- File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
+- Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
 
 ### Sync rules
 
@@ -97,6 +108,7 @@ If any required external values are missing, ask a targeted question after check
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
 - Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
+- If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
 
 ### Conventions
 
@@ -104,7 +116,6 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input or params.
 - List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
@@ -127,15 +138,15 @@ Mapping example (API expects a different parameter name):
 
 ```typescript
 const InputSchema = z.object({
-    userId: z.string()
+  userId: z.string(),
 });
 
 const config: ProxyConfiguration = {
-    endpoint: 'users.info',
-    params: {
-        user: input.userId
-    },
-    retries: 3
+  endpoint: "users.info",
+  params: {
+    user: input.userId,
+  },
+  retries: 3,
 };
 ```
 
@@ -147,6 +158,7 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
+
 - Functions runtime SDK reference: https://nango.dev/docs/reference/functions
 - Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
@@ -158,11 +170,13 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 ## When API Docs Do Not Render
 
 If web fetching returns incomplete docs (JS-rendered):
+
 - Ask the user for a sample response
 - Use existing Nango actions or syncs in the workspace as a pattern when they exist
 - Use the skill-specific validation or dryrun workflow until it passes
 
 ## Workflow (required)
+
 1. Decide whether this is an action or a sync.
 2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
 3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
@@ -185,6 +199,7 @@ ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango
 ```
 
 If you see `YAML PROJECT DETECTED`:
+
 - Stop immediately.
 - Tell the user to upgrade to the TypeScript format first.
 - Do not attempt to mix YAML and TypeScript.
@@ -200,6 +215,7 @@ ls -la .nango/ 2>/dev/null && pwd && echo "IN NANGO PROJECT ROOT" || echo "NOT i
 ```
 
 If you see `NOT in Nango root`:
+
 - `cd` into the directory that contains `.nango/`
 - Re-run the check
 - Do not use absolute paths as a workaround
@@ -234,8 +250,8 @@ Use side-effect imports only. Include the `.js` extension.
 
 ```typescript
 // index.ts
-import './github/actions/get-top-contributor.js';
-import './github/syncs/fetch-issues.js';
+import "./github/actions/get-top-contributor.js";
+import "./github/syncs/fetch-issues.js";
 ```
 
 Symptom of incorrect registration: the file compiles but you see `No entry points found in index.ts...` or the function never appears.
@@ -243,6 +259,7 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 ## Dryrun, Mocks, and Tests (required)
 
 Required loop:
+
 1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
 2. Actions: always pass `--input '{...}'` (use `--input '{}'` for no-input actions).
 3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
@@ -276,6 +293,7 @@ nango dryrun <script-name> <connection-id> --validate -e dev --no-interactive --
 ```
 
 Hard rules:
+
 - Treat `<script-name>.test.json` as generated output. Never create, edit, rename, or move it.
 - If mocks are wrong or stale, fix the code and re-record with `--save`.
 - Do not hard-code error payloads in `*.test.json`; use a Vitest test with `vi.spyOn(...)` for 404, 401, 429, or timeout cases.
@@ -304,10 +322,11 @@ Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implem
 ## Final Checklists
 
 Action:
+
 - [ ] Nango root verified
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and missing-value rules match the provider versus normalized contract
-- [ ] `createAction()` includes endpoint, input, output, and scopes when required
+- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
 - [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
@@ -317,6 +336,7 @@ Action:
 - [ ] `nango generate:tests` ran and `npm test` passes
 
 Sync:
+
 - [ ] Nango root verified
 - [ ] `references/syncs.md` was used for the sync pattern
 - [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters

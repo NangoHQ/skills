@@ -1,17 +1,18 @@
 ---
 name: building-nango-functions-remotely
-description: Builds Nango Functions without a checked-out Nango project by calling Nango remote compile, dryrun, and deploy endpoints, resolving NANGO_SERVER_URL from env or .env, and using shared action and sync patterns. Use when creating or updating Nango actions or syncs remotely.
+description: Builds Nango Functions without a checked-out Nango project by using the Nango /functions compile, dryrun, dryrun status, and deployment APIs with NANGO_SERVER_URL and NANGO_SECRET_KEY. Use when creating, updating, validating, testing, or deploying Nango actions or syncs remotely via API or single-file payloads. This content overlaps with building-nango-functions but adds remote API workflow details, so load this instead of building-nango-functions whenever remote, API, /functions/compile, /functions/dryruns, /functions/deployments, or no local project workflow is indicated.
 ---
 
 # Build Nango Functions Remotely
 
-Build Nango actions and syncs without a checked-out Nango project by sending a single-file TypeScript function to Nango's remote compile, dryrun, and deploy APIs.
+Build Nango actions and syncs without a checked-out Nango project by sending a single-file TypeScript function to Nango's `/functions/compile`, `/functions/dryruns`, and `/functions/deployments` APIs.
 
-## When to use
+## Implementation Scope
 
-- User wants to build or modify a Nango function
-- User wants to build an action in Nango
-- User wants to build a sync in Nango
+- Build or modify a Nango function implementation
+- Build an action in Nango with `createAction()`
+- Build a sync in Nango with `createSync()`
+- Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
 ## Sync Strategy Gate (required before writing code)
 
@@ -56,9 +57,9 @@ Sync:
 Always:
 
 - Integration ID (provider name)
-- Connection ID (for validation or dryrun)
 - Script/function name (kebab-case)
 - API reference URL or sample response
+- Connection ID if the active workflow will validate or dryrun the function
 
 Action-specific:
 
@@ -66,7 +67,7 @@ Action-specific:
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON for validation/dryrun (required; use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
 
 Sync-specific:
 
@@ -89,7 +90,9 @@ If any required external values are missing, ask a targeted question after check
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
+- File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
+- Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
 
 ### Sync rules
 
@@ -105,6 +108,7 @@ If any required external values are missing, ask a targeted question after check
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
 - Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
+- If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
 
 ### Conventions
 
@@ -112,7 +116,6 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- Prefer static Nango endpoint paths (avoid `:id` / `{id}` in the exposed endpoint); pass IDs in input or params.
 - List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
@@ -176,8 +179,9 @@ If web fetching returns incomplete docs (JS-rendered):
 
 - No checked-out Nango project is required.
 - Resolve `NANGO_SERVER_URL` in this order: environment variable, `.env` file, then fallback to `https://api.nango.dev`.
-- Resolve `NANGO_SECRET_KEY` before calling remote endpoints.
+- Resolve `NANGO_SECRET_KEY` before calling function endpoints.
 - Use the environment bound to that secret key.
+- Confirm the key has the needed scope: `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun and polling, and `environment:deploy` for deployment.
 - Keep the function self-contained in one TypeScript file unless you have direct evidence that the remote endpoint accepts multi-file payloads.
 - Do NOT create or modify any files in the current project/directory. If you need to create files, use a temp folder
 
@@ -189,10 +193,12 @@ If web fetching returns incomplete docs (JS-rendered):
 4. Gather required inputs and external values, including the `NANGO_SECRET_KEY` for the target environment and any metadata needed for dryrun.
 5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
 6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
-7. Compile with `POST {host}/remote-function/compile` until compilation passes.
-8. Dryrun with `POST {host}/remote-function/dryrun` using the target connection plus `input`, `metadata`, or `checkpoint` as needed.
-9. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
-10. Deploy with `POST {host}/remote-function/deploy` only when requested.
+7. Compile with `POST {host}/functions/compile` until compilation passes.
+8. Start a dryrun with `POST {host}/functions/dryruns` using the target integration, connection, function type, code, and any `input`, `metadata`, or `checkpoint` needed.
+9. Poll `GET {host}/functions/dryruns/{id}` until the dryrun reaches `success` or `failed`.
+10. If compile or dryrun cannot pass, stop and report the missing external state, inputs, or API contract mismatch.
+11. Start deployment with `POST {host}/functions/deployments` only when requested.
+12. Poll `GET {host}/functions/deployments/{id}` until the deployment reaches `success` or `failed`.
 
 ## Remote API Workflow (required)
 
@@ -200,19 +206,28 @@ Read `references/api.md` before making remote calls.
 
 Required sequence:
 
-1. Compile first with `/remote-function/compile`.
-2. Dryrun second with `/remote-function/dryrun`.
-3. Deploy last with `/remote-function/deploy`.
+1. Compile first with `POST /functions/compile`.
+2. Start dryrun second with `POST /functions/dryruns`.
+3. Poll dryrun status with `GET /functions/dryruns/{id}` until terminal.
+4. Start deployment last with `POST /functions/deployments` only when requested.
+5. Poll deployment status with `GET /functions/deployments/{id}` until terminal.
 
 Rules:
 
 - These endpoints are relative. Always resolve them against the chosen `NANGO_SERVER_URL`.
 - Send `Authorization: Bearer <NANGO_SECRET_KEY>` and `Content-Type: application/json`.
+- Required API key scopes are `environment:functions:compile` for compile, `environment:functions:dryrun` for dryrun create/status, and `environment:deploy` for deployment create/status.
 - Do not send query params unless the API docs or an existing caller prove they are supported.
 - Use the server's validation errors to correct payloads. Do not invent undocumented fields when the API rejects a request.
+- Compile sends only `{ "code": "..." }`.
+- Dryrun sends `integration_id`, `function_type`, `code`, and `connection_id`.
+- Deploy sends `type: "function"`, `integration_id`, `function_name`, `function_type`, and `code`. Add `version` or `allow_destructive` only when explicitly needed.
 - For actions, dryrun should include `input` and `metadata` only when needed.
 - For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
-- Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result, but it does not record local mocks.
+- Dryrun is asynchronous. `POST /functions/dryruns` returns an `id`; poll `GET /functions/dryruns/{id}` for `status`, `output`, `result`, or `error`. Do not call `/functions/dryruns/{id}/result`; it is sandbox-internal.
+- Deployment is asynchronous. `POST /functions/deployments` returns an `id`; poll `GET /functions/deployments/{id}` for `status`, `deployed`, `deployed_functions`, `output`, or `error`. Do not call `/functions/deployments/{id}/result`; it is sandbox-internal.
+- Treat `waiting` and `running` as nonterminal; stop polling only on `success` or `failed`.
+- Remote dryrun does not expose CLI `--validate` or `--save`; it compiles before running and returns the execution result through the status endpoint, but it does not record local mocks.
 
 ## Final Checklists
 
@@ -220,14 +235,16 @@ Action:
 
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and the function stays self-contained in one file
-- [ ] `createAction()` includes endpoint, input, output, and scopes when required
+- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
 - [ ] Fields use passthrough casing or the API's majority casing
 - [ ] Provider call includes an API doc link comment and intentional retries
 - [ ] `nango.ActionError` is used for expected failures
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-function/compile`
-- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and the expected action output
-- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
+- [ ] Compile succeeds with `POST /functions/compile`
+- [ ] Dryrun was started with `POST /functions/dryruns`
+- [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` with the expected action output
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
 
 Sync:
 
@@ -243,6 +260,8 @@ Sync:
 - [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] The function stays self-contained in one file unless the remote API proves multi-file support
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /remote-function/compile`
-- [ ] Dryrun succeeds with `POST /remote-function/dryrun` and returns the expected change set
-- [ ] Deploy succeeds with `POST /remote-function/deploy` when requested
+- [ ] Compile succeeds with `POST /functions/compile`
+- [ ] Dryrun was started with `POST /functions/dryruns`
+- [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` and returns the expected change set
+- [ ] Deployment was started with `POST /functions/deployments` when requested
+- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested

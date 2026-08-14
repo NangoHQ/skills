@@ -151,7 +151,7 @@ Map YAML config to Zero YAML config like this:
 - `auto_start` -> `autoStart`
 - `sync_type` -> `syncType`
 - `track_deletes` -> `trackDeletes`
-- `endpoints` -> `endpoints`
+- YAML `endpoints` -> omit from `createSync(...)`; the Zero YAML `endpoints` field is deprecated
 - `scopes` -> `scopes`
 - webhook subscriptions -> `webhookSubscriptions`
 - YAML `input` model -> `metadata`
@@ -176,7 +176,6 @@ const sync = createSync({
     autoStart: true,
     syncType: 'full',
     trackDeletes: false,
-    endpoints: [{ method: 'GET', path: '/tickets', group: 'Tickets' }],
     metadata: Metadata,
     models: { Ticket },
     exec: async (nango) => {
@@ -196,7 +195,7 @@ Map YAML config like this:
 
 - `description` -> `description`
 - `version` -> `version` (default `0.0.1`)
-- `endpoint` -> `endpoint`
+- YAML `endpoint` -> omit from `createAction(...)`; the Zero YAML `endpoint` field is deprecated
 - `input` -> `input`
 - `output` -> `output`
 - `scopes` -> `scopes`
@@ -214,7 +213,6 @@ import { CreateTicketInput, CreateTicketOutput } from '../../models.js';
 const action = createAction({
     description: 'Create ticket',
     version: '0.0.1',
-    endpoint: { method: 'POST', path: '/tickets', group: 'Tickets' },
     input: CreateTicketInput,
     output: CreateTicketOutput,
     exec: async (nango, input) => {

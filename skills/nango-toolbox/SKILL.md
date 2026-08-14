@@ -113,7 +113,7 @@ Scopes are comma-separated (no spaces).
 
 Prefer reusing an existing deployed action (see `GET <base-url>/scripts/config`).
 
-If you must create a new action, use the `building-nango-function-remotely` skill and deploy before calling it.
+If you must create a new action, use the `building-nango-functions-remotely` skill and deploy before calling it.
 If the skill does not exist, offer to install it from https://github.com/NangoHQ/skills
 
 Invoke a deployed action:

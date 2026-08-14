@@ -22,6 +22,7 @@
 
 Notes:
 - `input` is required. For no-input actions, use `z.object({})`.
+- Do not set `endpoint` in `createAction(...)`; it is deprecated. Trigger actions by action name through the SDK/API.
 - Do not import `ActionError`. Throw `new nango.ActionError(payload)` from the `nango` exec param.
 - Import `ProxyConfiguration` only if you annotate a variable.
 - This example uses snake_case. Rename fields for camelCase APIs.
@@ -48,11 +49,6 @@ const OutputSchema = z.object({
 const action = createAction({
     description: 'Brief single sentence',
     version: '1.0.0',
-    endpoint: {
-        method: 'GET',
-        path: '/user',
-        group: 'Users'
-    },
     input: InputSchema,
     output: OutputSchema,
     scopes: ['required.scope'],
@@ -195,6 +191,31 @@ if (response.status === 429) {
 ```
 
 Do not return null-filled objects to indicate not found. Throw `ActionError` instead.
+
+## File handling — use proxy scripts, not actions
+
+File uploads and downloads **must not be implemented as Nango actions**. Both are inherently client-side operations that belong in **proxy scripts** (`{integration}/proxy/`) using `@nangohq/node`.
+
+**Why actions cannot handle files:**
+- Actions run in Nango's sandboxed cloud runtime with no `fs`, no `axios`, and no native `FormData`/`Blob`
+- Uploads would require manual multipart boundary construction and `uncontrolledFetch` workarounds
+- Downloads of large or binary content exceed the 2 MB action output limit
+
+**Use a proxy script when:**
+- Uploading files (multipart/form-data, FormData, Blob) — `nango.post({ data: formData })` works directly via axios
+- Downloading large or binary content — response is streamed/processed in the caller's stack
+- Fetching documents, attachments, or any content the caller needs to handle directly
+
+**Structure:**
+```
+{integration}/
+  proxy/
+    upload-file.ts      # or fetch-document.ts, download-attachment.ts, etc.
+```
+
+Each proxy script initializes `new Nango({ secretKey: ... })` and calls `nango.get/post/...` directly. Auth injection still happens server-side through the Nango proxy.
+
+If asked to build an action for file upload or download, create a proxy script instead.
 
 ## Validation and execution
 
