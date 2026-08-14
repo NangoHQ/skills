@@ -555,13 +555,24 @@ if (deletions.length > 0) {
 
 Use full refresh only when the provider truly cannot return changes, deletions, or resumable state. State the blocker explicitly before using this pattern.
 
+Full refresh syncs still need a `checkpoint` schema. Nango syncs run inside an execution window with a time limit. If a full refresh does not finish within that window and has no checkpoint, the next run restarts from page one, re-fetching the same early pages every time and never reaching the rest of the dataset. Always:
+
+- Read the checkpoint first. Call `trackDeletesStart()` on every execution — after any metadata or input validation, but before the fetch loop. It is safe to call repeatedly; it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened. (If validation fails and returns early before this call, `trackDeletesEnd()` will never run, leaving delete tracking unclosed.)
+- Start pagination from the saved checkpoint when one exists.
+- Call `saveCheckpoint()` with the next page/cursor after every `batchSave()`, not only at the end of `exec`.
+- Call `clearCheckpoint()` only once the last page has been saved.
+- Call `trackDeletesEnd()` only after `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished walking the full dataset.
+
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
 
-Call `trackDeletesStart` **after** any metadata or input validation, but **before** the fetch loop. If validation fails and returns early, `trackDeletesEnd` will never run — leaving delete tracking unclosed and causing missed or false deletions.
-
 ```typescript
+const CheckpointSchema = z.object({
+    page: z.number().int().positive().optional()
+});
+
 const sync = createSync({
     frequency: 'every hour',
+    checkpoint: CheckpointSchema,
     models: {
         Record: RecordSchema
     },
@@ -569,17 +580,33 @@ const sync = createSync({
     exec: async (nango) => {
         // Blocker: provider only exposes /v1/records with no changed-since filter,
         // no deleted-record endpoint, and no resumable cursor.
+        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        let page: number | undefined = checkpoint?.page ?? 1;
+
+        // Safe to call every execution: trackDeletesStart() will not overwrite the
+        // start of a delete-tracking window this refresh already opened.
         await nango.trackDeletesStart('Record');
 
         const proxyConfig = {
             // https://api-docs-url
             endpoint: '/v1/records',
-            paginate: { limit: 100 },
+            paginate: {
+                type: 'offset',
+                offset_name_in_request: 'page',
+                offset_start_value: page,
+                offset_calculation_method: 'per-page',
+                limit_name_in_request: 'limit',
+                limit: 100,
+                response_path: 'items',
+                on_page: async ({ nextPageParam }) => {
+                    page = typeof nextPageParam === 'number' ? nextPageParam : undefined;
+                }
+            },
             retries: 3
         };
 
-        for await (const page of nango.paginate(proxyConfig)) {
-            const records = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
+        for await (const pageResults of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
+            const records = pageResults.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
@@ -588,8 +615,18 @@ const sync = createSync({
             if (records.length > 0) {
                 await nango.batchSave(records, 'Record');
             }
+
+            // Save pagination progress after every page. Without this, a run that
+            // exceeds the execution window restarts from page 1 next time instead of
+            // resuming where it left off.
+            if (page !== undefined) {
+                await nango.saveCheckpoint({ page });
+            }
         }
 
+        // Clear the checkpoint only after the last page has been saved, then close the
+        // delete-tracking window opened by trackDeletesStart().
+        await nango.clearCheckpoint();
         await nango.trackDeletesEnd('Record');
     }
 });
@@ -679,3 +716,21 @@ Why this is invalid:
 - the endpoint returns only changed contacts
 - unchanged contacts are absent from this execution
 - `trackDeletesEnd()` will delete those unchanged contacts as if they disappeared at the provider
+
+Bad example: a full refresh with no checkpoint.
+
+```typescript
+await nango.trackDeletesStart('Record');
+
+for await (const page of nango.paginate(proxyConfig)) {
+    const records = page.map(mapRecord);
+    await nango.batchSave(records, 'Record');
+}
+
+await nango.trackDeletesEnd('Record');
+```
+
+Why this is invalid:
+- a run that exceeds the execution window loses all pagination progress
+- the next run restarts from page 1, wasting compute re-fetching the same early pages
+- later pages may never be reached, and each run's `trackDeletesEnd()` then falsely deletes the records on those unreached pages
