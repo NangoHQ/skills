@@ -1,6 +1,7 @@
 ## Final Checklists
 
 Action:
+
 - [ ] Nango root verified
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and missing-value rules match the provider versus normalized contract
@@ -14,6 +15,7 @@ Action:
 - [ ] `nango generate:tests` ran and `npm test` passes
 
 Sync:
+
 - [ ] Nango root verified
 - [ ] `references/syncs.md` was used for the sync pattern
 - [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters
@@ -26,6 +28,8 @@ Sync:
 - [ ] `nango.paginate()` is used unless the API truly cannot fit Nango's paginator
 - [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] Deletion strategy matches the sync type: `batchDelete()` for incremental only when the provider returns explicit deletions; otherwise full-refresh fallback uses `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch plus save
+- [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
+- [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
 - [ ] Metadata handled if required
 - [ ] Registered in `index.ts`
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm`

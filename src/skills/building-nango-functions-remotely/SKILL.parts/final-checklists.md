@@ -1,6 +1,7 @@
 ## Final Checklists
 
 Action:
+
 - [ ] `references/actions.md` was used for the action pattern
 - [ ] Schemas and types are clear, and the function stays self-contained in one file
 - [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
@@ -15,6 +16,7 @@ Action:
 - [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
 
 Sync:
+
 - [ ] `references/syncs.md` was used for the sync pattern
 - [ ] Models map is defined, ids are stable strings, and normalized models prefer `.optional()` unless `null` matters
 - [ ] Incremental was chosen first, with a checkpoint schema unless full refresh is explicitly justified from docs or payloads
@@ -22,6 +24,8 @@ Sync:
 - [ ] Checkpoint data changes the provider request or resume state (`since`, `updated_after`, `cursor`, `page_token`, `offset`, `page`, `since_id`, etc.)
 - [ ] Changed-only checkpoint syncs (`modified_after`, `updated_after`, changed-records endpoint) do not use `trackDeletesStart()` / `trackDeletesEnd()`
 - [ ] If checkpoints were not used, the response explains exactly why no viable checkpoint strategy exists
+- [ ] Full refresh syncs have a `checkpoint` schema, resume pagination from it, and call `saveCheckpoint()` after each page so an execution-window timeout does not restart from page 1
+- [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, on the run that finishes the last page
 - [ ] Provider API calls use `retries: 3`; no sync retry value exceeds `3` without a documented exception
 - [ ] The function stays self-contained in one file unless the remote API proves multi-file support
 - [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`

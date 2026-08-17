@@ -35,6 +35,8 @@ Invalid sync implementations:
 - `saveCheckpoint()` without `getCheckpoint()`
 - reading or saving a checkpoint without using it in request params or pagination state
 - using `syncType: 'incremental'` or `nango.lastSyncDate` in a new sync
+- a full refresh with no `checkpoint` schema, or one that is never saved after each page — the run restarts from page 1 whenever it exceeds the execution window
+- calling `trackDeletesEnd()` before `clearCheckpoint()`, or without a preceding `clearCheckpoint()` at all
 - using `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint (`modified_after`, `updated_after`, changed-records endpoint). Those requests omit unchanged rows, so `trackDeletesEnd()` will falsely delete them.
 - using `trackDeletesStart()` / `trackDeletesEnd()` in an incremental sync that already has explicit deleted-record events
 
@@ -98,9 +100,10 @@ If any required external values are missing, ask a targeted question after check
 - Prefer `batchDelete()` when the provider returns deletions, tombstones, or delete webhooks.
 - Use full refresh only if the provider cannot return changes, deletions, or resume state, or if the dataset is tiny.
 - For full refresh, cite the exact provider limitation from docs or payloads. "It is easier" is not enough.
-- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` before fetch/save and `trackDeletesEnd()` only after a successful full fetch/save.
+- Full refresh syncs still need a `checkpoint` schema (page/cursor/offset) covering pagination progress, not just incremental syncs. Nango syncs run inside a time-limited execution window; a full refresh with no checkpoint restarts from page 1 on every run that exceeds the window, wasting compute re-fetching the same early pages and never reaching the rest.
+- `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
-- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes the full window.
+- Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
 - If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
 
 ### Conventions
