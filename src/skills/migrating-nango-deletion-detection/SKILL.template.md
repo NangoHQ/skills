@@ -24,8 +24,8 @@ Full refresh syncs need a pagination `checkpoint` (page/cursor/offset) in additi
 
 - Read the checkpoint first (`await nango.getCheckpoint()`), and resume pagination from it when present.
 - Call `trackDeletesStart('ModelName')` at the beginning of every execution in the refresh window. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
-- After each successful `batchSave()`, call `saveCheckpoint()` with the next page/cursor.
-- Call `clearCheckpoint()` only after the last page is saved.
+- After each successful `batchSave()`, call `saveCheckpoint()` with the next page/cursor — on every page, including the last one. Do not guard the call with "more pages remain" (`if (nextPage) { ... }`); a run whose whole dataset fits on the first page then never saves a checkpoint at all.
+- Call `clearCheckpoint()` only after the last page is saved, and only if a checkpoint was actually saved this execution or resumed from a prior one. `clearCheckpoint()` is optimistic-locked: deleting a checkpoint that was never written fails with `checkpoint_conflict`, identical to a genuine concurrent-write conflict.
 - Call `trackDeletesEnd('ModelName')` only after that `clearCheckpoint()` — i.e. only in the execution that finishes saving the full dataset.
 
 ## Tests
@@ -50,6 +50,7 @@ await nango.deleteRecordsFromPreviousExecutions("Ticket");
 // After
 const checkpoint = await nango.getCheckpoint<{ page?: number }>();
 let page = checkpoint?.page ?? 1;
+let checkpointSaved = false;
 
 await nango.trackDeletesStart("Ticket");
 
@@ -65,11 +66,20 @@ for await (const results of nango.paginate({
 })) {
   await nango.batchSave(results, "Ticket");
 
-  if (page !== undefined) {
-    await nango.saveCheckpoint({ page });
-  }
+  // Save on every page, including the last — do not guard this with
+  // `if (page !== undefined)`. Skipping it whenever there is no next page
+  // means a run whose entire dataset fits on the first page never saves a
+  // checkpoint, and the clearCheckpoint() below would then fail with
+  // checkpoint_conflict (deleting a row that was never written).
+  await nango.saveCheckpoint({ page });
+  checkpointSaved = true;
 }
 
-await nango.clearCheckpoint();
+// Only clear if this execution (or a resumed prior one) actually has a
+// checkpoint to delete — clearCheckpoint() is optimistic-locked and errors
+// the same way on "no row" as on a genuine concurrent write.
+if (checkpointSaved || checkpoint?.page !== undefined) {
+  await nango.clearCheckpoint();
+}
 await nango.trackDeletesEnd("Ticket");
 ```
