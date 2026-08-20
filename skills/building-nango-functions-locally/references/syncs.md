@@ -560,7 +560,7 @@ Full refresh syncs still need a `checkpoint` schema. Nango syncs run inside an e
 - Read the checkpoint first. Call `trackDeletesStart()` on every execution — after any metadata or input validation, but before the fetch loop. It is safe to call repeatedly; it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened. (If validation fails and returns early before this call, `trackDeletesEnd()` will never run, leaving delete tracking unclosed.)
 - Start pagination from the saved checkpoint when one exists.
 - Call `saveCheckpoint()` with the next page/cursor after every `batchSave()`, including the last page. Never guard the save with "more pages remain" or defer it until the end of `exec`.
-- Call `clearCheckpoint()` once, only after the last page has been saved. Saving every page guarantees that a checkpoint row exists to clear, including when the full dataset fits on the first page.
+- Call `clearCheckpoint()` once, only after the last page has been saved. Saving every processed page guarantees that a checkpoint row exists to clear, including when the full dataset fits on the first page. If an execution path creates no checkpoint at all (for example, it processes no pages), do not call `clearCheckpoint()` on that path; it throws `checkpoint_conflict` at runtime. This is not a substitute for saving the last page.
 - Call `trackDeletesEnd()` only after `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished walking the full dataset.
 
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.

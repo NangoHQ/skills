@@ -25,7 +25,7 @@ Full refresh syncs need a pagination `checkpoint` (page/cursor/offset) in additi
 - Read the checkpoint first (`await nango.getCheckpoint()`), and resume pagination from it when present.
 - Call `trackDeletesStart('ModelName')` at the beginning of every execution in the refresh window. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
 - After each successful `batchSave()`, call `saveCheckpoint()` with the next page/cursor — on every page, including the last one. Do not guard the call with "more pages remain" (`if (nextPage) { ... }`); a run whose whole dataset fits on the first page then never saves a checkpoint at all.
-- Call `clearCheckpoint()` only after the last page is saved. Because every page must call `saveCheckpoint()`, the checkpoint row always exists before it is cleared.
+- Call `clearCheckpoint()` only after the last page is saved. Because every processed page must call `saveCheckpoint()`, the normal page-processing path has a checkpoint row to clear. If a distinct path creates no checkpoint at all (for example, it processes no pages), do not call `clearCheckpoint()` on that path; it throws `checkpoint_conflict` at runtime. This is not a substitute for saving the last page.
 - Call `trackDeletesEnd('ModelName')` only after that `clearCheckpoint()` — i.e. only in the execution that finishes saving the full dataset.
 
 ## Tests

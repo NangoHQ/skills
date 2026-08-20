@@ -121,7 +121,7 @@ Use this only when the API cannot return changed rows but can resume pagination.
 - Call `trackDeletesStart()` on every execution of the refresh. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
 - Start pagination from the saved cursor/page when the checkpoint is present.
 - After each successful `batchSave()`, call `saveCheckpoint()` with the next cursor/page (same loop body—never only at the end of `exec`) — including on the last page, not only when another page remains.
-- Call `clearCheckpoint()` only after the last page is saved. Do not conditionally skip it; saving every page, including the last, guarantees that the checkpoint row exists before it is cleared.
+- Call `clearCheckpoint()` only after the last page is saved. Saving every processed page, including the last, guarantees that the normal page-processing path has a checkpoint row to clear. If a distinct path creates no checkpoint at all (for example, it processes no pages), do not call `clearCheckpoint()` on that path; it throws `checkpoint_conflict` at runtime. This is not a substitute for saving the last page.
 - Call `trackDeletesEnd()` only after that `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished the full dataset.
 - On the next scheduled run, a cleared checkpoint makes the sync start from the beginning again.
 
@@ -154,6 +154,7 @@ Use `--metadata` when the sync needs metadata, tailor the `--checkpoint` payload
 - [ ] Every `batchSave()`/`batchUpdate()`/`batchDelete()` that advances progress is immediately followed by `saveCheckpoint()` in the same loop (including inside `nango.paginate` and pagination helpers—not only once after `exec` returns)
 - [ ] Full refresh syncs have a checkpoint schema, resume pagination from it, save it after every page (including the last), and call `clearCheckpoint()` only after successful completion of the last page
 - [ ] Full-refresh `saveCheckpoint()` calls are never guarded by whether another page remains
+- [ ] Every path that calls `clearCheckpoint()` has created or resumed a checkpoint; paths that create none do not call it
 - [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, in the execution that finishes the last page
 - [ ] Delete handling matches the sync type: `batchDelete()` for explicit provider deletes, `trackDeletesStart/End` only for full refresh
 - [ ] Dryrun was tested with a realistic `--checkpoint`
