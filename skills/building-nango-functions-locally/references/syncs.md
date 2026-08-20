@@ -560,8 +560,8 @@ Full refresh syncs still need a `checkpoint` schema. Nango syncs run inside an e
 - Read the checkpoint first. Call `trackDeletesStart()` on every execution — after any metadata or input validation, but before the fetch loop. It is safe to call repeatedly; it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened. (If validation fails and returns early before this call, `trackDeletesEnd()` will never run, leaving delete tracking unclosed.)
 - Start pagination from the saved checkpoint when one exists.
 - Call `saveCheckpoint()` with the next page/cursor after every `batchSave()`, not only at the end of `exec`.
-- Call `clearCheckpoint()` only once the last page has been saved.
-- Call `trackDeletesEnd()` only after `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished walking the full dataset.
+- Call `clearCheckpoint()` only once the last page has been saved — but only when a checkpoint actually exists to clear. `clearCheckpoint()` deletes with an optimistic-lock check, and a run whose entire dataset fits on the first page never calls `saveCheckpoint()` if that call is guarded by "more pages remain" (e.g. `if (nextPage) { await nango.saveCheckpoint(...) }`). Calling `clearCheckpoint()` unconditionally after such a run fails with `checkpoint_conflict` ("Checkpoint has been updated since last read") — the same error a genuine concurrent write would produce, because deleting a nonexistent row is rejected the same way. Track whether this execution saved a checkpoint (or resumed one via `getCheckpoint()`), and skip `clearCheckpoint()` when neither is true.
+- Call `trackDeletesEnd()` only after `clearCheckpoint()` (or after skipping it per the rule above), so it fires exactly once, in the execution that actually finished walking the full dataset.
 
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
 
@@ -582,6 +582,7 @@ const sync = createSync({
         // no deleted-record endpoint, and no resumable cursor.
         const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
         let page: number | undefined = checkpoint?.page ?? 1;
+        let checkpointSaved = false;
 
         // Safe to call every execution: trackDeletesStart() will not overwrite the
         // start of a delete-tracking window this refresh already opened.
@@ -616,17 +617,21 @@ const sync = createSync({
                 await nango.batchSave(records, 'Record');
             }
 
-            // Save pagination progress after every page. Without this, a run that
-            // exceeds the execution window restarts from page 1 next time instead of
-            // resuming where it left off.
-            if (page !== undefined) {
-                await nango.saveCheckpoint({ page });
-            }
+            // Save pagination progress after every page, including the last one.
+            // Without this, a run that exceeds the execution window restarts from
+            // page 1 next time instead of resuming where it left off.
+            await nango.saveCheckpoint({ page });
+            checkpointSaved = true;
         }
 
-        // Clear the checkpoint only after the last page has been saved, then close the
-        // delete-tracking window opened by trackDeletesStart().
-        await nango.clearCheckpoint();
+        // clearCheckpoint() is optimistic-locked: deleting a checkpoint that was
+        // never saved this run (or resumed from a prior one) fails with
+        // `checkpoint_conflict`, identical to a genuine concurrent write. Only
+        // clear when one actually exists, then close the delete-tracking window
+        // opened by trackDeletesStart().
+        if (checkpointSaved || checkpoint?.page !== undefined) {
+            await nango.clearCheckpoint();
+        }
         await nango.trackDeletesEnd('Record');
     }
 });
@@ -734,3 +739,40 @@ Why this is invalid:
 - a run that exceeds the execution window loses all pagination progress
 - the next run restarts from page 1, wasting compute re-fetching the same early pages
 - later pages may never be reached, and each run's `trackDeletesEnd()` then falsely deletes the records on those unreached pages
+
+Bad example: `saveCheckpoint()` is guarded by "more pages remain," so it never runs when the whole dataset fits on one page.
+
+```typescript
+let offset = (await nango.getCheckpoint<{ offset?: number }>())?.offset ?? 0;
+const limit = 100;
+let hasMore = true;
+
+await nango.trackDeletesStart('Record');
+
+while (hasMore) {
+    const response = await nango.get({
+        endpoint: '/v1/records',
+        params: { limit, offset },
+        retries: 3
+    });
+
+    await nango.batchSave(response.data.items.map(mapRecord), 'Record');
+
+    if (response.data.items.length < limit) {
+        hasMore = false;
+    } else {
+        offset += limit;
+        await nango.saveCheckpoint({ offset });
+    }
+}
+
+await nango.trackDeletesEnd('Record');
+await nango.clearCheckpoint();
+```
+
+Why this is invalid:
+
+- `saveCheckpoint()` only runs in the `else` branch, when another page remains
+- whenever the full result set fits in a single page (a small connection, or any run after the dataset shrinks below `limit`), that branch never executes and no checkpoint row is ever written
+- the unconditional `clearCheckpoint()` then tries to delete a checkpoint that does not exist; `clearCheckpoint()` is optimistic-locked, so a delete matching zero rows fails with `checkpoint_conflict` ("Checkpoint has been updated since last read") — indistinguishable from a genuine concurrent-write conflict, even though nothing raced
+- fix by saving the checkpoint on every page including the last (`await nango.saveCheckpoint({ offset })` unconditionally, right before evaluating `hasMore`), or by tracking whether this run (or a resumed prior one) actually wrote a checkpoint and skipping `clearCheckpoint()` when neither is true

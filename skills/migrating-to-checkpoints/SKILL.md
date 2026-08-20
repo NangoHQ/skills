@@ -15,6 +15,7 @@ Update existing `createSync()` code to use checkpoints. Preserve provider behavi
 ## Gotchas
 
 - **Always call `saveCheckpoint()` immediately after every successful `batchSave()`** (and after `batchUpdate()` / `batchDelete()` when those advance progress). This is required inside pagination loops (`for await` over `nango.paginate`, manual cursor/offset loops, nested fetches)—not only once at the end of `exec`. Saving only after a helper returns or only at the end of `exec` leaves no durable progress if the run fails mid-pagination.
+- **Do not guard `saveCheckpoint()` with "more pages remain."** A pattern like `if (nextCursor) { await nango.saveCheckpoint(...) }` skips the call on the terminal page. If the whole dataset fits on that first page, no checkpoint row is ever written, and a later unconditional `clearCheckpoint()` then fails with `checkpoint_conflict` ("Checkpoint has been updated since last read") — the same error a real concurrent write would produce, because `clearCheckpoint()` is optimistic-locked and a delete matching zero rows is rejected identically. Save the checkpoint on every page, including the last, or track whether one was actually saved (or resumed) and skip `clearCheckpoint()` otherwise.
 - Do not add a checkpoint that is only saved. The next run must use it in provider request params or pagination/resume state.
 - Use flat checkpoint objects only: string, number, or boolean values. Store dates as ISO strings; do not save `Date` objects, arrays, or nested objects.
 - The first run after deployment has no checkpoint yet, so it behaves like an initial sync and may take longer than later incremental runs. Tell the customer when this matters.
@@ -119,9 +120,9 @@ Use this only when the API cannot return changed rows but can resume pagination.
 - Read the saved cursor/page before fetching.
 - Call `trackDeletesStart()` on every execution of the refresh. It is safe to call repeatedly — it will not overwrite the start of a delete-tracking window that a prior execution of the same logical refresh already opened.
 - Start pagination from the saved cursor/page when the checkpoint is present.
-- After each successful `batchSave()`, call `saveCheckpoint()` with the next cursor/page (same loop body—never only at the end of `exec`).
-- Call `clearCheckpoint()` only after the last page is saved.
-- Call `trackDeletesEnd()` only after that `clearCheckpoint()`, so it fires exactly once, in the execution that actually finished the full dataset.
+- After each successful `batchSave()`, call `saveCheckpoint()` with the next cursor/page (same loop body—never only at the end of `exec`) — including on the last page, not only when another page remains.
+- Call `clearCheckpoint()` only after the last page is saved, and only when a checkpoint actually exists to clear. Track whether this execution called `saveCheckpoint()` (or resumed one from a prior execution via `getCheckpoint()`); if neither is true — e.g. the entire dataset fit on the first page and `saveCheckpoint()` was never called — skip `clearCheckpoint()`. Calling it unconditionally fails with `checkpoint_conflict` when there is no row to delete, since the delete is optimistic-locked and a zero-row match is rejected the same as a genuine concurrent write.
+- Call `trackDeletesEnd()` only after that `clearCheckpoint()` (or after skipping it per the rule above), so it fires exactly once, in the execution that actually finished the full dataset.
 - On the next scheduled run, a cleared checkpoint makes the sync start from the beginning again.
 
 ## Delete Handling
@@ -151,7 +152,8 @@ Use `--metadata` when the sync needs metadata, tailor the `--checkpoint` payload
 - [ ] `getCheckpoint()` is called before provider requests
 - [ ] Saved checkpoint changes the next provider request or resume state
 - [ ] Every `batchSave()`/`batchUpdate()`/`batchDelete()` that advances progress is immediately followed by `saveCheckpoint()` in the same loop (including inside `nango.paginate` and pagination helpers—not only once after `exec` returns)
-- [ ] Full refresh syncs have a checkpoint schema, resume pagination from it, save it after every page, and call `clearCheckpoint()` only after successful completion of the last page
+- [ ] Full refresh syncs have a checkpoint schema, resume pagination from it, save it after every page (including the last), and call `clearCheckpoint()` only after successful completion of the last page
+- [ ] `clearCheckpoint()` is guarded so it only runs when a checkpoint was actually saved this execution or resumed from a prior one — never called unconditionally
 - [ ] Full refresh `trackDeletesEnd()` runs only after `clearCheckpoint()`, in the execution that finishes the last page
 - [ ] Delete handling matches the sync type: `batchDelete()` for explicit provider deletes, `trackDeletesStart/End` only for full refresh
 - [ ] Dryrun was tested with a realistic `--checkpoint`
