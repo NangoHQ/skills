@@ -26,6 +26,7 @@ Invalid sync implementations:
 - reading or saving a checkpoint without using it in request params or pagination state
 - using `syncType: 'incremental'` or `nango.lastSyncDate` in a new sync
 - a full refresh with no `checkpoint` schema, or one that is never saved after each page — the run restarts from page 1 whenever it exceeds the execution window
+- `saveCheckpoint()` guarded so it only runs when more pages remain (e.g. `if (nextCursor) { await nango.saveCheckpoint(...) }`). Every successful page, including the last, must call `saveCheckpoint()`; otherwise a one-page sync reaches `clearCheckpoint()` with no checkpoint row and fails with `checkpoint_conflict`.
 - calling `trackDeletesEnd()` before `clearCheckpoint()`, or without a preceding `clearCheckpoint()` at all
 - using `trackDeletesStart()` / `trackDeletesEnd()` with a changed-only checkpoint (`modified_after`, `updated_after`, changed-records endpoint). Those requests omit unchanged rows, so `trackDeletesEnd()` will falsely delete them.
 - using `trackDeletesStart()` / `trackDeletesEnd()` in an incremental sync that already has explicit deleted-record events
@@ -97,6 +98,7 @@ If any required external values are missing, ask a targeted question after check
 - For full refresh, cite the exact provider limitation from docs or payloads. "It is easier" is not enough.
 - Full refresh syncs still need a `checkpoint` schema (page/cursor/offset) covering pagination progress, not just incremental syncs. Nango syncs run inside a time-limited execution window; a full refresh with no checkpoint restarts from page 1 on every run that exceeds the window, wasting compute re-fetching the same early pages and never reaching the rest.
 - `deleteRecordsFromPreviousExecutions()` is deprecated. For full refresh, call `trackDeletesStart()` on every execution (safe/idempotent — it will not overwrite the start of an already-open window), then `saveCheckpoint()` after each page, `clearCheckpoint()` after the last page, and `trackDeletesEnd()` only after that `clearCheckpoint()`.
+- In a full refresh, call `saveCheckpoint()` after every successful page, including the last, before calling `clearCheckpoint()`. Never guard the save with "more pages remain." If a distinct execution path creates no checkpoint at all (for example, it processes no pages), do not call `clearCheckpoint()` on that path; it throws `checkpoint_conflict` at runtime. This exception is not a substitute for saving the terminal page.
 - Never combine `trackDeletesStart()` / `trackDeletesEnd()` with changed-only checkpoints (`modified_after`, `updated_after`, changed-records endpoints, etc.). They omit unchanged rows, so `trackDeletesEnd()` would delete them.
 - Checkpointed full refreshes are still full refreshes. Call `trackDeletesEnd()` only in the run that finishes and clears the checkpoint.
 - If a sync requires metadata (e.g. `team_id`, `workspace_id`, `guild_id`), set `autoStart: false`. The sync cannot run until the caller has set the metadata, so starting it automatically would fail.
