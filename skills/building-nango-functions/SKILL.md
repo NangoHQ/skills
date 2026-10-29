@@ -13,6 +13,7 @@ If the task becomes clearly local/CLI-based, use `building-nango-functions-local
 ## Implementation Scope
 - Build or modify a Nango function implementation
 - Build an action in Nango with `createAction()`
+- Build a tool in Nango with `createTool()`
 - Build a sync in Nango with `createSync()`
 - Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
@@ -47,6 +48,11 @@ Action:
 - One-time request, user-triggered, built with `createAction()`
 - Read `references/actions.md` before writing code
 
+Tool:
+- One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
+- Read `references/tools.md` before writing code
+- Tools need `nango` 0.71.14 or later
+
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
 - Complete the Sync Strategy Gate first
@@ -60,12 +66,13 @@ Always:
 - API reference URL or sample response
 - Connection ID if the active workflow will validate or dryrun the function
 
-Action-specific:
+Action- and tool-specific:
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the function (use `{}` for no-input actions and tools)
+- For tools: instructions for the calling agent and the provider scopes the tool needs
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -82,11 +89,12 @@ If any required external values are missing, ask a targeted question after check
 
 ### Shared platform constraints
 
-- Nango functions use `createAction()` / `createSync()`.
+- Nango functions use `createAction()` / `createTool()` / `createSync()`.
 - You cannot add arbitrary packages. Use relative imports only when the chosen workflow supports them; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
+- A tool call waits for its result for at most 2 minutes: one page per List or Search call, and a stated maximum per Batch call.
 - File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
 - Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
@@ -153,6 +161,7 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 ## References
 
 - Action patterns, CRUD examples, metadata usage, and ActionError examples: `references/actions.md`
+- Tool limits, the `createTool()` template, reading connection metadata, and failures: `references/tools.md`
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)

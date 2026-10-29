@@ -1,5 +1,5 @@
 ## Workflow (required)
-1. Decide whether this is an action or a sync.
+1. Decide whether this is an action or a sync. The remote functions API accepts `function_type` `action` or `sync` only, so build a tool (`createTool()`, `references/tools.md`) with the local CLI workflow instead.
 2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
 3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
 4. Gather required inputs and external values, including the `NANGO_SECRET_KEY` for the target environment and any metadata needed for dryrun.

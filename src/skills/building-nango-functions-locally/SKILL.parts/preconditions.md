@@ -2,7 +2,7 @@
 
 ### Confirm TypeScript Project (No `nango.yaml`)
 
-This skill only supports TypeScript projects using `createAction()` / `createSync()`.
+This skill only supports TypeScript projects using `createAction()` / `createTool()` / `createSync()`.
 
 ```bash
 ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"

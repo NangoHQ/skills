@@ -4,11 +4,12 @@ description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango 
 ---
 
 # Build Nango Functions Locally
-Build deployable Nango actions and syncs in a checked-out Nango project with the local CLI validation and test workflow.
+Build deployable Nango actions, tools, and syncs in a checked-out Nango project with the local CLI validation and test workflow.
 
 ## Implementation Scope
 - Build or modify a Nango function implementation
 - Build an action in Nango with `createAction()`
+- Build a tool in Nango with `createTool()`
 - Build a sync in Nango with `createSync()`
 - Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
@@ -43,6 +44,11 @@ Action:
 - One-time request, user-triggered, built with `createAction()`
 - Read `references/actions.md` before writing code
 
+Tool:
+- One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
+- Read `references/tools.md` before writing code
+- Tools need `nango` 0.71.14 or later
+
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
 - Complete the Sync Strategy Gate first
@@ -56,12 +62,13 @@ Always:
 - API reference URL or sample response
 - Connection ID if the active workflow will validate or dryrun the function
 
-Action-specific:
+Action- and tool-specific:
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the function (use `{}` for no-input actions and tools)
+- For tools: instructions for the calling agent and the provider scopes the tool needs
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -78,11 +85,12 @@ If any required external values are missing, ask a targeted question after check
 
 ### Shared platform constraints
 
-- Nango functions use `createAction()` / `createSync()`.
+- Nango functions use `createAction()` / `createTool()` / `createSync()`.
 - You cannot add arbitrary packages. Use relative imports only when the chosen workflow supports them; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
 - Action outputs cannot exceed 2MB.
+- A tool call waits for its result for at most 2 minutes: one page per List or Search call, and a stated maximum per Batch call.
 - File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
 - Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
@@ -149,6 +157,7 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 ## References
 
 - Action patterns, CRUD examples, metadata usage, and ActionError examples: `references/actions.md`
+- Tool limits, the `createTool()` template, reading connection metadata, and failures: `references/tools.md`
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
@@ -168,12 +177,12 @@ If web fetching returns incomplete docs (JS-rendered):
 - Use the skill-specific validation or dryrun workflow until it passes
 
 ## Workflow (required)
-1. Decide whether this is an action or a sync.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
+1. Decide whether this is an action, a tool, or a sync.
+2. Read the matching reference file: `references/actions.md`, `references/tools.md`, or `references/syncs.md`.
 3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
 4. Gather required inputs and external values. For connection lookup, credentials, or discovery, use the Nango HTTP API.
 5. Confirm this is a Zero YAML TypeScript project (`no nango.yaml`) and that you are in the Nango root (`.nango/` exists).
-6. Create or update the function under `{integrationId}/actions/` or `{integrationId}/syncs/`, apply the shared schema and casing rules, then register it in `index.ts`.
+6. Create or update the function under `{integrationId}/actions/`, `{integrationId}/tools/`, or `{integrationId}/syncs/`, apply the shared schema and casing rules, then register it in `index.ts`.
 7. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm`.
 8. If validation cannot pass, stop and report the missing external state or inputs.
 9. After validation passes, run `nango dryrun ... --save`, then `nango generate:tests`, then `npm test`.
@@ -183,7 +192,7 @@ If web fetching returns incomplete docs (JS-rendered):
 
 ### Confirm TypeScript Project (No `nango.yaml`)
 
-This skill only supports TypeScript projects using `createAction()` / `createSync()`.
+This skill only supports TypeScript projects using `createAction()` / `createTool()` / `createSync()`.
 
 ```bash
 ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"
@@ -220,6 +229,8 @@ All file paths must be relative to the Nango root. Creating files with extra pre
 |-- hubspot/
 |   |-- actions/
 |   |   `-- create-contact.ts
+|   |-- tools/
+|   |   `-- get-contact.ts
 |   `-- syncs/
 |       `-- fetch-contacts.ts
 `-- slack/
@@ -228,10 +239,10 @@ All file paths must be relative to the Nango root. Creating files with extra pre
 ```
 
 - Provider directories: lowercase (`hubspot`, `slack`)
-- Action files: kebab-case (`create-contact.ts`)
+- Action and tool files: kebab-case (`create-contact.ts`, `get-contact.ts`)
 - Sync files: kebab-case (many teams use a `fetch-` prefix, but it is optional)
 - One function per file
-- All actions and syncs must be imported in `index.ts`
+- All actions, tools, and syncs must be imported in `index.ts`
 
 ### Register scripts in `index.ts` (required)
 
@@ -240,6 +251,7 @@ Use side-effect imports only. Include the `.js` extension.
 ```typescript
 // index.ts
 import './github/actions/get-top-contributor.js';
+import './github/tools/get-issue.js';
 import './github/syncs/fetch-issues.js';
 ```
 
@@ -249,11 +261,11 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 
 Required loop:
 1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
-2. Actions: always pass `--input '{...}'` (use `--input '{}'` for no-input actions).
+2. Actions and tools: always pass `--input '{...}'` (use `--input '{}'` for no-input ones).
 3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
 4. If validation cannot pass, stop and state the missing external state or inputs required.
 5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
-6. Run `nango generate:tests`, then `npm test`.
+6. Run `nango generate:tests`, then `npm test`. For tools, run it without `-a`/`--action` (that filter skips tools); `-i <integration-id>` is fine. A tool's test is `<integration-id>/tests/<integration-id>-<tool-name>.test.ts`.
 
 Examples:
 
@@ -264,6 +276,9 @@ nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --
 # Validate a no-input action
 nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
 
+# Validate a tool (the tool's name, not its file name, when they differ)
+nango dryrun <tool-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
 # Validate a sync
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
 
@@ -272,6 +287,9 @@ nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --au
 
 # Record action mocks after validation passes
 nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Record tool mocks after validation passes
+nango dryrun <tool-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 
 # Record sync mocks after validation passes
 nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
@@ -302,6 +320,9 @@ nango deploy dev
 # Deploy only one function
 nango deploy --action <action-name> dev
 nango deploy --sync <sync-name> dev
+
+# Tools have no single-function flag: deploy their integration
+nango deploy --integration <integration-id> dev
 ```
 
 Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
@@ -320,6 +341,19 @@ Action:
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm --input '{...}'`
 - [ ] `<action-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
 - [ ] `nango generate:tests` ran and `npm test` passes
+
+Tool:
+- [ ] Nango root verified
+- [ ] `references/tools.md` was used for the tool pattern
+- [ ] `createTool()` has a description, input, output, and `meta.instructions` for the calling agent; `meta.requiredScopes` lists the provider scopes
+- [ ] `exec` reads its input from `trigger.input`
+- [ ] The tool finishes within 2 minutes: one page per List or Search call, a stated maximum per Batch call
+- [ ] Expected failures throw `new Error('<code>: <message>')`; there is no `ActionError` in tools
+- [ ] Connection metadata, if needed, is read from `nango.getConnection()` and parsed with Zod
+- [ ] Registered in `index.ts`
+- [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm --input '{...}'`
+- [ ] `<tool-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
+- [ ] `nango generate:tests` ran without `--action` and `npm test` passes
 
 Sync:
 - [ ] Nango root verified

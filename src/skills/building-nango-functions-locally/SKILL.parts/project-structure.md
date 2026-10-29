@@ -7,6 +7,8 @@
 |-- hubspot/
 |   |-- actions/
 |   |   `-- create-contact.ts
+|   |-- tools/
+|   |   `-- get-contact.ts
 |   `-- syncs/
 |       `-- fetch-contacts.ts
 `-- slack/
@@ -15,10 +17,10 @@
 ```
 
 - Provider directories: lowercase (`hubspot`, `slack`)
-- Action files: kebab-case (`create-contact.ts`)
+- Action and tool files: kebab-case (`create-contact.ts`, `get-contact.ts`)
 - Sync files: kebab-case (many teams use a `fetch-` prefix, but it is optional)
 - One function per file
-- All actions and syncs must be imported in `index.ts`
+- All actions, tools, and syncs must be imported in `index.ts`
 
 ### Register scripts in `index.ts` (required)
 
@@ -27,6 +29,7 @@ Use side-effect imports only. Include the `.js` extension.
 ```typescript
 // index.ts
 import './github/actions/get-top-contributor.js';
+import './github/tools/get-issue.js';
 import './github/syncs/fetch-issues.js';
 ```
 
