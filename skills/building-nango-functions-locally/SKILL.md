@@ -1,14 +1,14 @@
 ---
 name: building-nango-functions-locally
-description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy via CLI. Use when creating, updating, validating, testing, or deploying Nango actions or syncs locally in a repo. This content overlaps with building-nango-functions but adds CLI workflow details, so load this instead of building-nango-functions whenever a local project, local files, Nango root, CLI, dryrun, generated tests, or nango deploy workflow is indicated.
+description: Builds Nango Functions in a checked-out Zero YAML TypeScript Nango project using local files, index.ts registration, nango dryrun, generated tests, and optional nango deploy via CLI. Use when creating, updating, validating, testing, or deploying Nango tools or syncs locally in a repo. This content overlaps with building-nango-functions but adds CLI workflow details, so load this instead of building-nango-functions whenever a local project, local files, Nango root, CLI, dryrun, generated tests, or nango deploy workflow is indicated.
 ---
 
 # Build Nango Functions Locally
-Build deployable Nango actions and syncs in a checked-out Nango project with the local CLI validation and test workflow.
+Build deployable Nango tools and syncs in a checked-out Nango project with the local CLI validation and test workflow.
 
 ## Implementation Scope
 - Build or modify a Nango function implementation
-- Build an action in Nango with `createAction()`
+- Build a tool in Nango with `createTool()`
 - Build a sync in Nango with `createSync()`
 - Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
@@ -39,9 +39,10 @@ Invalid sync implementations:
 
 ## Choose the Path
 
-Action:
-- One-time request, user-triggered, built with `createAction()`
-- Read `references/actions.md` before writing code
+Tool:
+- One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
+- Read `references/tools.md` before writing code
+- Tools need `nango` 0.71.14 or later
 
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
@@ -56,12 +57,13 @@ Always:
 - API reference URL or sample response
 - Connection ID if the active workflow will validate or dryrun the function
 
-Action-specific:
+Tool-specific:
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the tool (use `{}` for no-input tools)
+- Instructions for the calling agent and the provider scopes the tool needs
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -78,14 +80,15 @@ If any required external values are missing, ask a targeted question after check
 
 ### Shared platform constraints
 
-- Nango functions use `createAction()` / `createSync()`.
+- Nango functions use `createTool()` / `createSync()`.
 - You cannot add arbitrary packages. Use relative imports only when the chosen workflow supports them; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
-- Action outputs cannot exceed 2MB.
-- File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
+- Tool outputs cannot exceed 2MB.
+- A tool call waits for its result for at most 2 minutes: one page per List or Search call, and a stated maximum per Batch call.
+- File uploads and downloads cannot be implemented as tools (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/tools.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
-- Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
+- Do not set the deprecated sync `endpoints` routing field. Call tools by name through the SDK/API (`POST /connections/:id/tools/:name/calls`), and consume sync records through the records API.
 
 ### Sync rules
 
@@ -110,7 +113,7 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
+- List and Search tools should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
 ### Schema Semantics
@@ -118,7 +121,7 @@ If any required external values are missing, ask a targeted question after check
 - Default non-required inputs to `.optional()`.
 - Use `.nullable()` only when `null` has meaning, usually clear-on-update; add `.optional()` when callers may omit the field too.
 - Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.
-- Final action outputs and normalized sync models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
+- Final tool outputs and normalized sync models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
 - Default generated schemas to `.optional()` for non-required inputs and normalized outputs; widen only when the upstream contract justifies it.
 - Prefer `.nullable()` over `z.union([z.null(), T])` or `z.union([T, z.null()])`.
 - Return `null` only when the output schema allows it.
@@ -148,12 +151,11 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 
 ## References
 
-- Action patterns, CRUD examples, metadata usage, and ActionError examples: `references/actions.md`
+- Tool limits, the `createTool()` template, CRUD patterns, reading connection metadata, failures, and file handling: `references/tools.md`
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
 - Functions runtime SDK reference: https://nango.dev/docs/reference/functions
-- Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
 - Checkpoints: https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
@@ -164,16 +166,16 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 
 If web fetching returns incomplete docs (JS-rendered):
 - Ask the user for a sample response
-- Use existing Nango actions or syncs in the workspace as a pattern when they exist
+- Use existing Nango tools or syncs in the workspace as a pattern when they exist
 - Use the skill-specific validation or dryrun workflow until it passes
 
 ## Workflow (required)
-1. Decide whether this is an action or a sync.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
+1. Decide whether this is a tool or a sync.
+2. Read the matching reference file: `references/tools.md` or `references/syncs.md`.
 3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
 4. Gather required inputs and external values. For connection lookup, credentials, or discovery, use the Nango HTTP API.
 5. Confirm this is a Zero YAML TypeScript project (`no nango.yaml`) and that you are in the Nango root (`.nango/` exists).
-6. Create or update the function under `{integrationId}/actions/` or `{integrationId}/syncs/`, apply the shared schema and casing rules, then register it in `index.ts`.
+6. Create or update the function under `{integrationId}/tools/` or `{integrationId}/syncs/`, apply the shared schema and casing rules, then register it in `index.ts`.
 7. Validate with `nango dryrun ... --validate -e dev --no-interactive --auto-confirm`.
 8. If validation cannot pass, stop and report the missing external state or inputs.
 9. After validation passes, run `nango dryrun ... --save`, then `nango generate:tests`, then `npm test`.
@@ -183,7 +185,7 @@ If web fetching returns incomplete docs (JS-rendered):
 
 ### Confirm TypeScript Project (No `nango.yaml`)
 
-This skill only supports TypeScript projects using `createAction()` / `createSync()`.
+This skill only supports TypeScript projects using `createTool()` / `createSync()`.
 
 ```bash
 ls nango.yaml 2>/dev/null && echo "YAML PROJECT DETECTED" || echo "OK - No nango.yaml"
@@ -218,20 +220,21 @@ All file paths must be relative to the Nango root. Creating files with extra pre
 |-- .nango/
 |-- index.ts
 |-- hubspot/
-|   |-- actions/
-|   |   `-- create-contact.ts
+|   |-- tools/
+|   |   |-- create-contact.ts
+|   |   `-- get-contact.ts
 |   `-- syncs/
 |       `-- fetch-contacts.ts
 `-- slack/
-    `-- actions/
+    `-- tools/
         `-- post-message.ts
 ```
 
 - Provider directories: lowercase (`hubspot`, `slack`)
-- Action files: kebab-case (`create-contact.ts`)
+- Tool files: kebab-case (`create-contact.ts`, `get-contact.ts`)
 - Sync files: kebab-case (many teams use a `fetch-` prefix, but it is optional)
 - One function per file
-- All actions and syncs must be imported in `index.ts`
+- All tools and syncs must be imported in `index.ts`
 
 ### Register scripts in `index.ts` (required)
 
@@ -239,7 +242,8 @@ Use side-effect imports only. Include the `.js` extension.
 
 ```typescript
 // index.ts
-import './github/actions/get-top-contributor.js';
+import './github/tools/get-top-contributor.js';
+import './github/tools/get-issue.js';
 import './github/syncs/fetch-issues.js';
 ```
 
@@ -249,20 +253,20 @@ Symptom of incorrect registration: the file compiles but you see `No entry point
 
 Required loop:
 1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
-2. Actions: always pass `--input '{...}'` (use `--input '{}'` for no-input actions).
+2. Tools: always pass `--input '{...}'` (use `--input '{}'` for no-input tools).
 3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
 4. If validation cannot pass, stop and state the missing external state or inputs required.
 5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
-6. Run `nango generate:tests`, then `npm test`.
+6. Run `nango generate:tests -i <integration-id>`, then `npm test`. Run it for the whole integration: its single-function filters do not select tools. A tool's test is `<integration-id>/tests/<integration-id>-<tool-name>.test.ts`.
 
 Examples:
 
 ```bash
-# Validate an action
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+# Validate a tool (the tool's name, not its file name, when they differ)
+nango dryrun <tool-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 
-# Validate a no-input action
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
+# Validate a no-input tool
+nango dryrun <tool-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
 
 # Validate a sync
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
@@ -270,8 +274,8 @@ nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --au
 # Validate a resumed sync with a checkpoint
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
 
-# Record action mocks after validation passes
-nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+# Record tool mocks after validation passes
+nango dryrun <tool-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 
 # Record sync mocks after validation passes
 nango dryrun <sync-name> <connection-id> --save -e dev --no-interactive --auto-confirm
@@ -299,27 +303,29 @@ Deploy functions to an environment in your Nango account:
 ```bash
 nango deploy dev
 
-# Deploy only one function
-nango deploy --action <action-name> dev
+# Deploy only one sync
 nango deploy --sync <sync-name> dev
+
+# Tools have no single-function flag: deploy their integration
+nango deploy --integration <integration-id> dev
 ```
 
-Reference: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
+Reference: https://nango.dev/docs/reference/functions
 
 ## Final Checklists
 
-Action:
+Tool:
 - [ ] Nango root verified
-- [ ] `references/actions.md` was used for the action pattern
-- [ ] Schemas and types are clear, and missing-value rules match the provider versus normalized contract
-- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
-- [ ] Fields use passthrough casing or the API's majority casing
-- [ ] Provider call includes an API doc link comment and intentional retries
-- [ ] `nango.ActionError` is used for expected failures
+- [ ] `references/tools.md` was used for the tool pattern
+- [ ] `createTool()` has a description, input, output, and `meta.instructions` for the calling agent; `meta.requiredScopes` lists the provider scopes
+- [ ] `exec` reads its input from `trigger.input`
+- [ ] The tool finishes within 2 minutes: one page per List or Search call, a stated maximum per Batch call
+- [ ] Expected failures throw `new Error('<code>: <message>')`; a tool's `nango` has no error class
+- [ ] Connection metadata, if needed, is read from `nango.getConnection()` and parsed with Zod
 - [ ] Registered in `index.ts`
 - [ ] Dryrun succeeds with `--validate -e dev --no-interactive --auto-confirm --input '{...}'`
-- [ ] `<action-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
-- [ ] `nango generate:tests` ran and `npm test` passes
+- [ ] `<tool-name>.test.json` was generated by `nango dryrun ... --save` after `--validate`
+- [ ] `nango generate:tests -i <integration-id>` ran and `npm test` passes
 
 Sync:
 - [ ] Nango root verified
