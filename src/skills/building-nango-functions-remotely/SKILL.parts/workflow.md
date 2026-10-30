@@ -1,10 +1,10 @@
 ## Workflow (required)
-1. Decide whether this is an action or a sync. The remote functions API accepts `function_type` `action` or `sync` only, so build a tool (`createTool()`, `references/tools.md`) with the local CLI workflow instead.
-2. Read the matching reference file: `references/actions.md` or `references/syncs.md`.
-3. For syncs, inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
+1. Confirm this is a sync. The remote functions API does not accept tools yet; build a tool (`createTool()`, `references/tools.md`) with `building-nango-functions-locally` instead.
+2. Read `references/syncs.md`.
+3. Inspect provider docs or payloads for checkpoints and deletes, decide whether the endpoint returns full data or changed rows, and complete the Sync Strategy Gate.
 4. Gather required inputs and external values, including the `NANGO_SECRET_KEY` for the target environment and any metadata needed for dryrun.
 5. Resolve the host from `NANGO_SERVER_URL` in the environment, then `.env`, then `https://api.nango.dev`.
-6. Write or update the function as one self-contained TypeScript file using `createAction()` or `createSync()`.
+6. Write or update the function as one self-contained TypeScript file using `createSync()`.
 7. Compile with `POST {host}/functions/compile` until compilation passes.
 8. Start a dryrun with `POST {host}/functions/dryruns` using the target integration, connection, function type, code, and any `input`, `metadata`, or `checkpoint` needed.
 9. Poll `GET {host}/functions/dryruns/{id}` until the dryrun reaches `success` or `failed`.

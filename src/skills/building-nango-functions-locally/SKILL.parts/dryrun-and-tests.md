@@ -2,32 +2,26 @@
 
 Required loop:
 1. Run `nango dryrun ... --validate -e dev --no-interactive --auto-confirm` until it passes.
-2. Actions and tools: always pass `--input '{...}'` (use `--input '{}'` for no-input ones).
+2. Tools: always pass `--input '{...}'` (use `--input '{}'` for no-input tools).
 3. Syncs: use `--checkpoint '{...}'` when you need to simulate a resumed run.
 4. If validation cannot pass, stop and state the missing external state or inputs required.
 5. After validation passes, run `nango dryrun ... --save -e dev --no-interactive --auto-confirm` to generate `<script-name>.test.json`.
-6. Run `nango generate:tests`, then `npm test`. For tools, run it without `-a`/`--action` (that filter skips tools); `-i <integration-id>` is fine. A tool's test is `<integration-id>/tests/<integration-id>-<tool-name>.test.ts`.
+6. Run `nango generate:tests -i <integration-id>`, then `npm test`. Run it for the whole integration: its single-function filters do not select tools. A tool's test is `<integration-id>/tests/<integration-id>-<tool-name>.test.ts`.
 
 Examples:
 
 ```bash
-# Validate an action
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
-
-# Validate a no-input action
-nango dryrun <action-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
-
 # Validate a tool (the tool's name, not its file name, when they differ)
 nango dryrun <tool-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
+
+# Validate a no-input tool
+nango dryrun <tool-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --input '{}'
 
 # Validate a sync
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm
 
 # Validate a resumed sync with a checkpoint
 nango dryrun <sync-name> <connection-id> --validate -e dev --no-interactive --auto-confirm --checkpoint '{"updated_after":"2024-01-15T00:00:00Z"}'
-
-# Record action mocks after validation passes
-nango dryrun <action-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'
 
 # Record tool mocks after validation passes
 nango dryrun <tool-name> <connection-id> --save -e dev --no-interactive --auto-confirm --input '{"key":"value"}'

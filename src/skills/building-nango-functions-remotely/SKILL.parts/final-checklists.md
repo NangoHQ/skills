@@ -1,20 +1,5 @@
 ## Final Checklists
 
-Action:
-
-- [ ] `references/actions.md` was used for the action pattern
-- [ ] Schemas and types are clear, and the function stays self-contained in one file
-- [ ] `createAction()` includes input, output, and scopes when required; deprecated `endpoint` is omitted
-- [ ] Fields use passthrough casing or the API's majority casing
-- [ ] Provider call includes an API doc link comment and intentional retries
-- [ ] `nango.ActionError` is used for expected failures
-- [ ] Host was resolved from `NANGO_SERVER_URL`, `.env`, or `https://api.nango.dev`
-- [ ] Compile succeeds with `POST /functions/compile`
-- [ ] Dryrun was started with `POST /functions/dryruns`
-- [ ] Dryrun status reached `success` through `GET /functions/dryruns/{id}` with the expected action output
-- [ ] Deployment was started with `POST /functions/deployments` when requested
-- [ ] Deployment status reached `success` through `GET /functions/deployments/{id}` when requested
-
 Sync:
 
 - [ ] `references/syncs.md` was used for the sync pattern
