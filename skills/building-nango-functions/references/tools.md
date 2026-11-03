@@ -188,6 +188,11 @@ const ListInput = z.object({
     cursor: z.string().optional().describe('Pagination cursor from the previous response. Omit for the first page.')
 });
 
+const ProviderUserPageSchema = z.object({
+    items: z.array(ProviderUserSchema),
+    next_cursor: z.string().nullable()
+});
+
 const ListOutput = z.object({
     items: z.array(OutputSchema),
     next_cursor: z.string().optional()
@@ -204,12 +209,14 @@ exec: async (nango, trigger): Promise<z.infer<typeof ListOutput>> => {
         retries: 3
     });
 
+    const providerPage = ProviderUserPageSchema.parse(response.data);
+
     return {
-        items: response.data.items.map((item: { id: string; name?: string | null }) => ({
+        items: providerPage.items.map((item) => ({
             id: item.id,
             ...(item.name != null && { name: item.name })
         })),
-        ...(response.data.next_cursor != null && { next_cursor: response.data.next_cursor })
+        ...(providerPage.next_cursor != null && { next_cursor: providerPage.next_cursor })
     };
 }
 ```
