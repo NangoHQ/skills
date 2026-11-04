@@ -46,7 +46,7 @@ Invalid sync implementations:
 Tool:
 - One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
 - Read `references/tools.md` before writing code
-- Tools need `nango` 0.71.14 or later
+- Tools need `nango` 0.72.1 or later
 
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
