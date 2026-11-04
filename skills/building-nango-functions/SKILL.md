@@ -46,7 +46,7 @@ Invalid sync implementations:
 Tool:
 - One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
 - Read `references/tools.md` before writing code
-- Tools need `nango` 0.71.14 or later
+- Tools need `nango` 0.72.1 or later
 
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
@@ -116,7 +116,7 @@ If any required external values are missing, ask a targeted question after check
 - Match field casing to the external API. Passthrough fields keep provider casing; non-passthrough fields should use the majority casing of that API.
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
-- Avoid `any`; use inline mapping types.
+- Avoid `any`; parse provider responses with Zod instead of asserting their shape with inline types, type arguments, or `as`.
 - List and Search tools should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 

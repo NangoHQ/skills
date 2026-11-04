@@ -65,7 +65,7 @@ const RecordSchema = z.object({
 });
 
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional()
+    updated_after: z.string()
 });
 
 const sync = createSync({
@@ -79,7 +79,7 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         // Use checkpoint values in request params or resume state.
     }
 });
@@ -94,7 +94,7 @@ Use this when the provider can filter records changed since a timestamp.
 
 ```typescript
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional()
+    updated_after: z.string()
 });
 
 const sync = createSync({
@@ -105,7 +105,7 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
 
         const proxyConfig = {
             // https://api-docs-url
@@ -119,19 +119,22 @@ const sync = createSync({
         };
 
         for await (const page of nango.paginate(proxyConfig)) {
-            const contacts = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
+            const providerRecords = z.array(ProviderRecordSchema).parse(page);
+            const contacts = providerRecords.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
-            if (contacts.length === 0) {
+            const lastContact = contacts[contacts.length - 1];
+
+            if (lastContact === undefined) {
                 continue;
             }
 
             await nango.batchSave(contacts, 'Contact');
             await nango.saveCheckpoint({
-                updated_after: contacts[contacts.length - 1].updated_at
+                updated_after: lastContact.updated_at
             });
         }
     }
@@ -141,8 +144,12 @@ const sync = createSync({
 If the provider exposes a deleted-record endpoint, use the same checkpoint value there.
 
 ```typescript
+const DeletedRecordsSchema = z.object({
+    items: z.array(z.object({ id: z.string() }))
+});
+
 if (checkpoint?.updated_after) {
-    const deleted = await nango.get({
+    const response = await nango.get({
         // https://api-docs-url
         endpoint: '/v1/contacts/deleted',
         params: {
@@ -151,9 +158,11 @@ if (checkpoint?.updated_after) {
         retries: 3
     });
 
-    if (deleted.data.items.length > 0) {
+    const deleted = DeletedRecordsSchema.parse(response.data);
+
+    if (deleted.items.length > 0) {
         await nango.batchDelete(
-            deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
+            deleted.items.map((record) => ({ id: record.id })),
             'Contact'
         );
     }
@@ -165,16 +174,22 @@ if (checkpoint?.updated_after) {
 Use this when the provider exposes a delta endpoint such as `/changes`, `/events`, or `/feed` and returns a cursor or token for the next page.
 
 ```typescript
+import { createSync, type ProxyConfiguration } from 'nango';
+
 const CheckpointSchema = z.object({
-    cursor: z.string().optional()
+    cursor: z.string()
 });
 
-type Change = {
-    id: string;
-    name?: string | null;
-    updated_at?: string;
-    deleted_at?: string;
-};
+const ProviderChangeSchema = z.object({
+    id: z.string(),
+    name: z.string().nullish(),
+    updated_at: z.string().optional(),
+    deleted_at: z.string().optional()
+});
+
+const ChangesResponseSchema = z.object({
+    cursor: z.string().optional()
+});
 
 const sync = createSync({
     frequency: 'every 5 minutes',
@@ -184,10 +199,10 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         let cursor = checkpoint?.cursor;
 
-        const proxyConfig = {
+        const proxyConfig: ProxyConfiguration = {
             // https://api-docs-url
             endpoint: '/v1/contacts/changes',
             params: {
@@ -199,13 +214,14 @@ const sync = createSync({
                 cursor_path_in_response: 'next_cursor',
                 response_path: 'items',
                 on_page: async ({ nextPageParam, response }) => {
-                    cursor = (response.data.cursor as string | undefined) ?? (typeof nextPageParam === 'string' ? nextPageParam : undefined);
+                    cursor = ChangesResponseSchema.parse(response.data).cursor ?? (typeof nextPageParam === 'string' ? nextPageParam : undefined);
                 }
             },
             retries: 3
         };
 
-        for await (const changes of nango.paginate<Change>(proxyConfig)) {
+        for await (const page of nango.paginate(proxyConfig)) {
+            const changes = z.array(ProviderChangeSchema).parse(page);
 
             const upserts = changes
                 .filter((change) => !change.deleted_at)
@@ -243,7 +259,7 @@ Use this only when the provider guarantees a monotonic identifier or event seque
 
 ```typescript
 const CheckpointSchema = z.object({
-    last_id: z.string().optional()
+    last_id: z.string()
 });
 
 const sync = createSync({
@@ -254,7 +270,7 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
 
         const proxyConfig = {
             // https://api-docs-url
@@ -268,19 +284,22 @@ const sync = createSync({
         };
 
         for await (const page of nango.paginate(proxyConfig)) {
-            const invoices = page.map((record: { id: string; name?: string | null; updated_at: string }) => ({
+            const providerRecords = z.array(ProviderRecordSchema).parse(page);
+            const invoices = providerRecords.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
-            if (invoices.length === 0) {
+            const lastInvoice = invoices[invoices.length - 1];
+
+            if (lastInvoice === undefined) {
                 continue;
             }
 
             await nango.batchSave(invoices, 'Invoice');
             await nango.saveCheckpoint({
-                last_id: invoices[invoices.length - 1].id
+                last_id: lastInvoice.id
             });
         }
     }
@@ -292,9 +311,11 @@ const sync = createSync({
 Use a composite checkpoint when the provider filters by time but also requires a page token or cursor to resume safely within the same window.
 
 ```typescript
+import { createSync, type ProxyConfiguration } from 'nango';
+
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional(),
-    page_token: z.string().optional()
+    updated_after: z.string(),
+    page_token: z.string()
 });
 
 const sync = createSync({
@@ -305,11 +326,11 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         let updatedAfter = checkpoint?.updated_after;
         let pageToken = checkpoint?.page_token;
 
-        const proxyConfig = {
+        const proxyConfig: ProxyConfiguration = {
             // https://api-docs-url
             endpoint: '/v1/tasks',
             params: {
@@ -331,14 +352,17 @@ const sync = createSync({
             retries: 3
         };
 
-        for await (const page of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
-            const tasks = page.map((record) => ({
+        for await (const page of nango.paginate(proxyConfig)) {
+            const providerRecords = z.array(ProviderRecordSchema).parse(page);
+            const tasks = providerRecords.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
-            if (tasks.length === 0) {
+            const lastTask = tasks[tasks.length - 1];
+
+            if (lastTask === undefined) {
                 continue;
             }
 
@@ -346,14 +370,14 @@ const sync = createSync({
 
             if (pageToken) {
                 await nango.saveCheckpoint({
-                    ...(updatedAfter && { updated_after: updatedAfter }),
+                    updated_after: updatedAfter ?? '',
                     page_token: pageToken
                 });
                 continue;
             }
 
-            updatedAfter = tasks[tasks.length - 1].updated_at;
-            await nango.saveCheckpoint({ updated_after: updatedAfter });
+            updatedAfter = lastTask.updated_at;
+            await nango.saveCheckpoint({ updated_after: updatedAfter, page_token: '' });
         }
     }
 });
@@ -366,9 +390,11 @@ Use this same pattern when the provider can return identical timestamps and you 
 Use a composite checkpoint when the provider filters by time but paginates with `page`, `offset`, or `start` instead of a token.
 
 ```typescript
+import { createSync, type ProxyConfiguration } from 'nango';
+
 const CheckpointSchema = z.object({
-    updated_after: z.string().optional(),
-    page: z.number().int().positive().optional()
+    updated_after: z.string(),
+    page: z.number().int().positive()
 });
 
 const sync = createSync({
@@ -379,12 +405,12 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         let updatedAfter = checkpoint?.updated_after;
         let page: number | undefined = checkpoint?.page ?? 1;
         let lastProcessedUpdatedAt: string | undefined;
 
-        const proxyConfig = {
+        const proxyConfig: ProxyConfiguration = {
             // https://api-docs-url
             endpoint: '/v1/leads',
             params: {
@@ -406,14 +432,17 @@ const sync = createSync({
             retries: 3
         };
 
-        for await (const pageResults of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
-            const leads = pageResults.map((record) => ({
+        for await (const pageResults of nango.paginate(proxyConfig)) {
+            const providerRecords = z.array(ProviderRecordSchema).parse(pageResults);
+            const leads = providerRecords.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
             }));
 
-            if (leads.length === 0) {
+            const lastLead = leads[leads.length - 1];
+
+            if (lastLead === undefined) {
                 if (page === undefined && lastProcessedUpdatedAt) {
                     await nango.saveCheckpoint({
                         updated_after: lastProcessedUpdatedAt,
@@ -424,11 +453,11 @@ const sync = createSync({
             }
 
             await nango.batchSave(leads, 'Lead');
-            lastProcessedUpdatedAt = leads[leads.length - 1].updated_at;
+            lastProcessedUpdatedAt = lastLead.updated_at;
 
             if (page !== undefined) {
                 await nango.saveCheckpoint({
-                    ...(updatedAfter && { updated_after: updatedAfter }),
+                    updated_after: updatedAfter ?? '',
                     page
                 });
                 continue;
@@ -457,6 +486,11 @@ const CheckpointSchema = z.object({
     updated_after: z.number()
 });
 
+const ProviderContactSchema = z.object({
+    id: z.string(),
+    updated_at: z.number()
+});
+
 const sync = createSync({
     frequency: 'every hour',
     checkpoint: CheckpointSchema,
@@ -465,7 +499,7 @@ const sync = createSync({
     },
 
     exec: async (nango) => {
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         const updatedAfter = checkpoint?.updated_after ?? Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
 
         // cursor_name_in_request uses dot-path so lodash set() writes the cursor into
@@ -494,7 +528,9 @@ const sync = createSync({
 
         let maxUpdatedAt: number | undefined;
 
-        for await (const contacts of nango.paginate<{ id: string; updated_at: number }>(proxyConfig)) {
+        for await (const page of nango.paginate(proxyConfig)) {
+            const contacts = z.array(ProviderContactSchema).parse(page);
+
             if (contacts.length > 0) {
                 await nango.batchSave(contacts, 'Contact');
 
@@ -522,7 +558,11 @@ Incremental syncs should usually delete with explicit provider data, not full re
 Deleted-record endpoint:
 
 ```typescript
-const deleted = await nango.get({
+const DeletedRecordsSchema = z.object({
+    items: z.array(z.object({ id: z.string() }))
+});
+
+const response = await nango.get({
     // https://api-docs-url
     endpoint: '/v1/tasks/deleted',
     params: {
@@ -531,9 +571,11 @@ const deleted = await nango.get({
     retries: 3
 });
 
-if (deleted.data.items.length > 0) {
+const deleted = DeletedRecordsSchema.parse(response.data);
+
+if (deleted.items.length > 0) {
     await nango.batchDelete(
-        deleted.data.items.map((record: { id: string }) => ({ id: record.id })),
+        deleted.items.map((record) => ({ id: record.id })),
         'Task'
     );
 }
@@ -566,8 +608,10 @@ Full refresh syncs still need a `checkpoint` schema. Nango syncs run inside an e
 Never reuse this pattern on a changed-only endpoint (`modified_after`, `updated_after`, changed-records feed, etc.). Those endpoints omit unchanged rows, so `trackDeletesEnd()` would treat unchanged records as deleted.
 
 ```typescript
+import { createSync, type ProxyConfiguration } from 'nango';
+
 const CheckpointSchema = z.object({
-    page: z.number().int().positive().optional()
+    page: z.number().int().positive()
 });
 
 const sync = createSync({
@@ -580,14 +624,14 @@ const sync = createSync({
     exec: async (nango) => {
         // Blocker: provider only exposes /v1/records with no changed-since filter,
         // no deleted-record endpoint, and no resumable cursor.
-        const checkpoint = await nango.getCheckpoint<z.infer<typeof CheckpointSchema>>();
+        const checkpoint = await nango.getCheckpoint();
         let page: number | undefined = checkpoint?.page ?? 1;
 
         // Safe to call every execution: trackDeletesStart() will not overwrite the
         // start of a delete-tracking window this refresh already opened.
         await nango.trackDeletesStart('Record');
 
-        const proxyConfig = {
+        const proxyConfig: ProxyConfiguration = {
             // https://api-docs-url
             endpoint: '/v1/records',
             paginate: {
@@ -605,8 +649,9 @@ const sync = createSync({
             retries: 3
         };
 
-        for await (const pageResults of nango.paginate<{ id: string; name?: string | null; updated_at: string }>(proxyConfig)) {
-            const records = pageResults.map((record) => ({
+        for await (const pageResults of nango.paginate(proxyConfig)) {
+            const providerRecords = z.array(ProviderRecordSchema).parse(pageResults);
+            const records = providerRecords.map((record) => ({
                 id: record.id,
                 ...(record.name != null && { name: record.name }),
                 updated_at: record.updated_at
@@ -619,7 +664,7 @@ const sync = createSync({
             // Save pagination progress after every page, including the last one.
             // Without this, a run that exceeds the execution window restarts from
             // page 1 next time instead of resuming where it left off.
-            await nango.saveCheckpoint({ page });
+            await nango.saveCheckpoint({ page: page ?? 1 });
         }
 
         // Every page, including the last, was checkpointed. Clear only after the
@@ -670,7 +715,7 @@ Validation, dryrun, mock recording, and deployment are workflow-specific. Use th
 Bad example: the checkpoint is read and saved, but it never changes the provider request.
 
 ```typescript
-const checkpoint = await nango.getCheckpoint<{ updated_after?: string }>();
+const checkpoint = await nango.getCheckpoint();
 
 const response = await nango.get({
     endpoint: '/v1/contacts',
@@ -693,7 +738,7 @@ The checkpoint must change the request or resume state.
 Bad example: a changed-only checkpoint is combined with `trackDeletesStart()` / `trackDeletesEnd()`.
 
 ```typescript
-const checkpoint = await nango.getCheckpoint<{ modified_after?: string }>();
+const checkpoint = await nango.getCheckpoint();
 
 await nango.trackDeletesStart('Contact');
 
@@ -736,7 +781,7 @@ Why this is invalid:
 Bad example: `saveCheckpoint()` is guarded by "more pages remain," so it never runs when the whole dataset fits on one page.
 
 ```typescript
-let offset = (await nango.getCheckpoint<{ offset?: number }>())?.offset ?? 0;
+let offset = (await nango.getCheckpoint())?.offset ?? 0;
 const limit = 100;
 let hasMore = true;
 

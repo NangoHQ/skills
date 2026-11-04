@@ -14,7 +14,7 @@
 - File handling — use proxy scripts, not tools
 - Validation and execution
 
-Verified against `nango` 0.71.14, the first release with `createTool()`.
+Verified against `nango` 0.72.1.
 
 ## When to build a tool
 
@@ -22,7 +22,7 @@ A tool is one callable task with an input and an output, called by an agent or a
 
 - A call always waits for the result, for at most 2 minutes. A task that can't finish in 2 minutes is not a tool.
 - A tool's output cannot exceed 2 MB.
-- A tool runs against one connection. It can read the connection but has no records, no checkpoints, and no metadata writes.
+- A tool runs against one connection. It can read the connection and its metadata, but it has no records.
 
 ## Limits
 
@@ -33,10 +33,11 @@ These are checked by `nango compile`:
 | `name` | Optional; defaults to the file name. Letters, digits, `_`, and `-`, at most 64 characters. |
 | `description` | Required. |
 | `meta.instructions` | At most 1,024 characters. |
-| `meta.requiredScopes` | At most 64 scopes of at most 64 characters each. Indicative only: Nango does not enforce them. |
+| `meta.requiredScopes` | One of `scopes.all(...)`, `scopes.any(...)`, or `scopes.none()`. Each list has 1 to 64 unique scopes of at most 64 characters. Leave it out when the scopes are unknown. Indicative only: Nango does not enforce them. |
 | `meta.tags` | At most 30. Keys match `^[a-z][a-z0-9_\-./]*$` (at most 64 characters); values are a string, or a list of strings, of at most 64 characters. `instructions` and `required_scopes` are reserved keys. |
+| `data` | Optional `metadata` and `checkpoint` schemas. `data.models` is rejected: a tool has no records. |
 
-`createTool()` has no `version`, `scopes`, `endpoint`, or `metadata` field.
+`createTool()` has no `version`, `scopes`, or `endpoint` field.
 
 ## Schema and casing rules
 
@@ -53,12 +54,13 @@ Notes:
 - `input` is required. For no-input tools, use `z.object({})`.
 - `exec` receives `(nango, trigger)`: the input is `trigger.input`, not the second argument itself.
 - `description` says what the tool does. `meta.instructions` tells the calling agent when to use it, which tool to use instead for a nearby task, what it needs first, and how to continue (for example, passing the next cursor back).
+- `meta.requiredScopes` lists the provider scopes the tool needs, with `scopes` imported from `nango`. See the forms below.
 - Import `ProxyConfiguration` only if you annotate a variable.
 - This example uses snake_case. Rename fields for camelCase APIs.
 
 ```typescript
 import { z } from 'zod';
-import { createTool } from 'nango';
+import { createTool, scopes } from 'nango';
 
 const InputSchema = z.object({
     user_id: z.string().describe('User ID. Example: "123"')
@@ -82,7 +84,7 @@ const tool = createTool({
     output: OutputSchema,
     meta: {
         instructions: 'Use for one known user ID. Use `list-users` to find an ID first.',
-        requiredScopes: ['users:read'],
+        requiredScopes: scopes.all('users:read'),
         tags: { read_only_hint: 'true' }
     },
 
@@ -106,6 +108,23 @@ const tool = createTool({
 export default tool;
 ```
 
+`meta.requiredScopes` takes one of three forms, which do not nest:
+
+```typescript
+// The tool needs every listed scope
+requiredScopes: scopes.all('users:read', 'teams:read')
+
+// Any one of these scopes is enough
+requiredScopes: scopes.any('repo', 'public_repo')
+
+// The tool needs no provider scope
+requiredScopes: scopes.none()
+```
+
+- Leave `requiredScopes` out when you don't know the scopes. Leaving it out means "unknown", not "none".
+- Write the `scopes` call directly in `meta`. `nango compile` fails with `unsupported_scopes_usage` when `scopes` is aliased, read with a computed key, or used without a call.
+- A list with the same scope twice fails to compile.
+
 ## What `nango` can do in a tool
 
 | Available | Methods |
@@ -113,30 +132,43 @@ export default tool;
 | Logging and environment | `log`, `getEnvironmentVariables` |
 | The connection | `getConnection`, `getToken`, `getIntegration`, `getVariant` |
 | Provider calls | `get`, `post`, `put`, `patch`, `delete`, `paginate`, `proxy`, `uncontrolledFetch` |
+| Expected failures | `nango.Error` |
+| Connection metadata, with `data.metadata` | `getMetadata`, `setMetadata`, `updateMetadata` |
+| Checkpoints, with `data.checkpoint` | `getCheckpoint`, `saveCheckpoint`, `clearCheckpoint` |
 
-Not available in a tool: `getMetadata`, `setMetadata`, `updateMetadata`, `batchSave` and other record methods, checkpoints, and an error class.
+Not available in a tool: `batchSave` and the other record methods. A tool cannot declare `data.models`.
 
 ## Connection metadata
 
-A tool can read the connection's metadata but not write it. `getConnection()` returns the whole connection, with `metadata` as an untyped record. Parse it with Zod:
+Declare the metadata schema in `data.metadata`, and read the metadata with `nango.getMetadata()`. `getMetadata()` returns the connection's metadata typed as the schema, but it does not validate it. Parse it with Zod:
 
 ```typescript
 const MetadataSchema = z.object({
     team_id: z.string()
 });
 
-exec: async (nango, trigger) => {
-    const connection = await nango.getConnection();
-    const metadata = MetadataSchema.safeParse(connection.metadata ?? {});
+const tool = createTool({
+    // name, description, input, output, and meta as in the base template
+    data: { metadata: MetadataSchema },
 
-    if (!metadata.success) {
-        throw new Error('invalid_metadata: team_id is required in the connection metadata.');
+    exec: async (nango, trigger) => {
+        const metadata = MetadataSchema.safeParse(await nango.getMetadata());
+
+        if (!metadata.success) {
+            throw new nango.Error({
+                code: 'invalid_metadata',
+                message: 'The connection metadata has no team_id. Set team_id on the connection, then call the tool again.'
+            });
+        }
+
+        const teamId = metadata.data.team_id;
+        // ...
     }
-
-    const teamId = metadata.data.team_id;
-    // ...
-}
+});
 ```
+
+- A tool reads metadata but does not write it. `data.metadata` also gives `setMetadata()` and `updateMetadata()`; leave metadata writes to the app that sets up the connection.
+- Do not declare `data.checkpoint` in a tool. A call is one request that must finish within 2 minutes, so there is no later run to resume.
 
 ## CRUD patterns
 
@@ -188,6 +220,11 @@ const ListInput = z.object({
     cursor: z.string().optional().describe('Pagination cursor from the previous response. Omit for the first page.')
 });
 
+const ProviderUserPageSchema = z.object({
+    items: z.array(ProviderUserSchema),
+    next_cursor: z.string().nullable()
+});
+
 const ListOutput = z.object({
     items: z.array(OutputSchema),
     next_cursor: z.string().optional()
@@ -204,27 +241,69 @@ exec: async (nango, trigger): Promise<z.infer<typeof ListOutput>> => {
         retries: 3
     });
 
+    const providerPage = ProviderUserPageSchema.parse(response.data);
+
     return {
-        items: response.data.items.map((item: { id: string; name?: string | null }) => ({
+        items: providerPage.items.map((item) => ({
             id: item.id,
             ...(item.name != null && { name: item.name })
         })),
-        ...(response.data.next_cursor != null && { next_cursor: response.data.next_cursor })
+        ...(providerPage.next_cursor != null && { next_cursor: providerPage.next_cursor })
     };
 }
 ```
 
 ## Failures
 
-A tool's `nango` has no error class yet.
-
-- For an expected failure, such as a lookup that finds nothing, throw `new Error('<code>: <message>')` with a stable snake_case code, so the caller can tell failures apart by the message.
+- For an expected failure, such as a lookup that finds nothing, throw `new nango.Error({ code, message })`. `code` is a stable snake_case code the caller can branch on, such as `not_found`. `message` says what happened and what the caller can do.
+- An HTTP caller gets status 500 with `{ error: { code: 'function_runtime_error', message: 'The function failed with a runtime error', payload: { code, message } } }`. An MCP caller gets `The function failed with a runtime error: <message>`, so the message must make sense without the code.
+- Use a plain `Error` only for unexpected failures. The caller gets status 500 with the code `script_internal_error`, and the error's message, name, and stack trace.
 - Provider HTTP errors you don't handle reach an HTTP caller with the provider's status and body. Catch them when you can give a clearer code.
 - Do not return null-filled objects to indicate not found.
 
+A provider call throws when the provider answers with an error status, after its retries. Read the status from the thrown error with Zod:
+
 ```typescript
-if (response.status === 429) {
-    throw new Error('rate_limited: The API rate limit was exceeded. Retry after the Retry-After interval.');
+const ProviderErrorSchema = z.object({
+    response: z.object({ status: z.number() })
+});
+
+exec: async (nango, trigger): Promise<z.infer<typeof OutputSchema>> => {
+    const input = trigger.input;
+
+    try {
+        const response = await nango.get({
+            // https://api-docs-url
+            endpoint: `/api/v1/users/${encodeURIComponent(input.user_id)}`,
+            retries: 3
+        });
+
+        const providerUser = ProviderUserSchema.parse(response.data);
+
+        return {
+            id: providerUser.id,
+            ...(providerUser.name != null && { name: providerUser.name })
+        };
+    } catch (error) {
+        const providerError = ProviderErrorSchema.safeParse(error);
+        const status = providerError.success ? providerError.data.response.status : undefined;
+
+        if (status === 404) {
+            throw new nango.Error({
+                code: 'not_found',
+                message: `No user has the ID ${input.user_id}. Use list-users to find the ID.`
+            });
+        }
+
+        if (status === 429) {
+            throw new nango.Error({
+                code: 'rate_limited',
+                message: 'The provider rate limit was still exceeded after 3 retries. Call the tool again in a minute.'
+            });
+        }
+
+        throw error;
+    }
 }
 ```
 
@@ -232,7 +311,7 @@ if (response.status === 429) {
 
 - Tool files go in `{integrationId}/tools/`, in kebab-case (`get-user.ts`).
 - Register each tool in `index.ts` like any other function: `import './github/tools/get-user.js';`
-- After `nango compile`, tools are listed in `.nango/functions.json` (not `.nango/nango.json`), with their description, tags (including `instructions` and `required_scopes`), and JSON Schemas.
+- After `nango compile`, tools are listed in `.nango/functions.json` (not `.nango/nango.json`), with their description, tags (including `instructions` and `required_scopes`), and JSON Schemas. `required_scopes` is `{ all: [...] }`, `{ any: [...] }`, or `{ none: true }`, with each list sorted alphabetically.
 
 ## File handling — use proxy scripts, not tools
 
