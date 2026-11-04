@@ -1,18 +1,18 @@
 ---
 name: building-nango-functions
-description: Builds Nango Function implementation patterns for createAction() and createSync() without choosing a local CLI or remote API workflow. Use only when the user asks to create or update a Nango action or sync and it is unclear whether the work should happen in a checked-out project via CLI or through Nango remote APIs. Do not load when building-nango-functions-locally or building-nango-functions-remotely applies; those skills overlap with this content and add workflow-specific validation and deploy details.
+description: Builds Nango Function implementation patterns for createTool() and createSync() without choosing a local CLI or remote API workflow. Use only when the user asks to create or update a Nango tool or sync and it is unclear whether the work should happen in a checked-out project via CLI or through Nango remote APIs. Do not load when building-nango-functions-locally or building-nango-functions-remotely applies; those skills overlap with this content and add workflow-specific validation and deploy details.
 ---
 
 # Build Nango Functions
-Build Nango action and sync implementations without choosing the execution workflow.
+Build Nango tool and sync implementations without choosing the execution workflow.
 
-This skill covers the function design contract: schemas, provider calls, action outputs, sync models, checkpoints, deletion handling, metadata, retries, and runtime constraints. It intentionally does not cover local CLI validation/deploy or remote API compile/dryrun/deploy.
+This skill covers the function design contract: schemas, provider calls, tool outputs, sync models, checkpoints, deletion handling, metadata, retries, and runtime constraints. It intentionally does not cover local CLI validation/deploy or remote API compile/dryrun/deploy.
 
 If the task becomes clearly local/CLI-based, use `building-nango-functions-locally` instead. If it becomes clearly remote/API-based, use `building-nango-functions-remotely` instead.
 
 ## Implementation Scope
 - Build or modify a Nango function implementation
-- Build an action in Nango with `createAction()`
+- Build a tool in Nango with `createTool()`
 - Build a sync in Nango with `createSync()`
 - Use the active workflow skill for compile, dryrun, test, and deploy mechanics
 
@@ -43,9 +43,10 @@ Invalid sync implementations:
 
 ## Choose the Path
 
-Action:
-- One-time request, user-triggered, built with `createAction()`
-- Read `references/actions.md` before writing code
+Tool:
+- One callable task that an agent or a developer calls and waits for, built with `createTool()`; it must finish within 2 minutes
+- Read `references/tools.md` before writing code
+- Tools need `nango` 0.71.14 or later
 
 Sync:
 - Scheduled or webhook-driven cache updates built with `createSync()`
@@ -60,12 +61,13 @@ Always:
 - API reference URL or sample response
 - Connection ID if the active workflow will validate or dryrun the function
 
-Action-specific:
+Tool-specific:
 - Use case summary
 - Input parameters
 - Output fields
 - Metadata JSON if required
-- Test input JSON if the active workflow will validate or dryrun the action (use `{}` for no-input actions)
+- Test input JSON if the active workflow will validate or dryrun the tool (use `{}` for no-input tools)
+- Instructions for the calling agent and the provider scopes the tool needs
 
 Sync-specific:
 - Model name (singular, PascalCase)
@@ -82,14 +84,15 @@ If any required external values are missing, ask a targeted question after check
 
 ### Shared platform constraints
 
-- Nango functions use `createAction()` / `createSync()`.
+- Nango functions use `createTool()` / `createSync()`.
 - You cannot add arbitrary packages. Use relative imports only when the chosen workflow supports them; built-ins include `zod`, `crypto`/`node:crypto`, and `url`/`node:url`.
 - Use the Nango HTTP API for connection lookup, credentials, and proxy calls outside function code. Do not invent CLI token or connection commands.
 - Add an API doc link comment above each provider call.
-- Action outputs cannot exceed 2MB.
-- File uploads and downloads cannot be implemented as actions (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/actions.md`.
+- Tool outputs cannot exceed 2MB.
+- A tool call waits for its result for at most 2 minutes: one page per List or Search call, and a stated maximum per Batch call.
+- File uploads and downloads cannot be implemented as tools (sandboxed runtime: no `fs`, no `axios`, 2 MB output limit). Use a proxy script in `{integration}/proxy/` with `@nangohq/node` instead — see `references/tools.md`.
 - HTTP retries default to `0`; set `retries` deliberately. Treat `3` as the normal maximum; for sync provider calls, values above `3` are effectively forbidden unless docs prove they are safe and necessary. Avoid retries for non-idempotent writes unless the API supports idempotency.
-- Do not set deprecated function definition routing fields: action `endpoint` and sync `endpoints`. Trigger actions by action name through the SDK/API, and consume sync records through the records API.
+- Do not set the deprecated sync `endpoints` routing field. Call tools by name through the SDK/API (`POST /connections/:id/tools/:name/calls`), and consume sync records through the records API.
 
 ### Sync rules
 
@@ -114,7 +117,7 @@ If any required external values are missing, ask a targeted question after check
 - Prefer explicit field names.
 - Add `.describe()` examples for IDs, timestamps, enums, and URLs.
 - Avoid `any`; use inline mapping types.
-- List actions should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
+- List and Search tools should expose `cursor` plus a next-cursor field in the majority casing of that API (`next_cursor`, `nextCursor`, etc.).
 - Use `nango.zodValidateInput()` only when you need custom validation or logging; otherwise rely on schemas plus the chosen validation workflow.
 
 ### Schema Semantics
@@ -122,7 +125,7 @@ If any required external values are missing, ask a targeted question after check
 - Default non-required inputs to `.optional()`.
 - Use `.nullable()` only when `null` has meaning, usually clear-on-update; add `.optional()` when callers may omit the field too.
 - Raw provider schemas should match the provider: `.optional()` for omitted fields, `.nullable()` for explicit `null`, `.nullish()` only when the provider truly does both.
-- Final action outputs and normalized sync models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
+- Final tool outputs and normalized sync models should prefer `.optional()` and normalize upstream `null` to omission unless `null` matters.
 - Default generated schemas to `.optional()` for non-required inputs and normalized outputs; widen only when the upstream contract justifies it.
 - Prefer `.nullable()` over `z.union([z.null(), T])` or `z.union([T, z.null()])`.
 - Return `null` only when the output schema allows it.
@@ -152,12 +155,11 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 
 ## References
 
-- Action patterns, CRUD examples, metadata usage, and ActionError examples: `references/actions.md`
+- Tool limits, the `createTool()` template, CRUD patterns, reading connection metadata, failures, and file handling: `references/tools.md`
 - Sync patterns, concrete checkpoint examples, delete strategies, and full refresh fallback: `references/syncs.md`
 
 ## Useful Nango docs (quick links)
 - Functions runtime SDK reference: https://nango.dev/docs/reference/functions
-- Implement an action: https://nango.dev/docs/implementation-guides/use-cases/actions/implement-an-action
 - Implement a sync: https://nango.dev/docs/implementation-guides/use-cases/syncs/implement-a-sync
 - Checkpoints: https://nango.dev/docs/implementation-guides/use-cases/syncs/checkpoints
 - Deletion detection (full vs incremental): https://nango.dev/docs/implementation-guides/use-cases/syncs/deletion-detection
@@ -168,5 +170,5 @@ If the API is snake_case, use `user_id` instead. The goal is API consistency.
 
 If web fetching returns incomplete docs (JS-rendered):
 - Ask the user for a sample response
-- Use existing Nango actions or syncs in the workspace as a pattern when they exist
+- Use existing Nango tools or syncs in the workspace as a pattern when they exist
 - Use the skill-specific validation or dryrun workflow until it passes

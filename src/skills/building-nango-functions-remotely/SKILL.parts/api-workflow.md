@@ -18,8 +18,7 @@ Rules:
 - Compile sends only `{ "code": "..." }`.
 - Dryrun sends `integration_id`, `function_type`, `code`, and `connection_id`.
 - Deploy sends `type: "function"`, `integration_id`, `function_name`, `function_type`, and `code`. Add `version` or `allow_destructive` only when explicitly needed.
-- For actions, dryrun should include `input` and `metadata` only when needed.
-- For syncs, dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
+- Dryrun should include `metadata` and `checkpoint` when needed to simulate a resumed run. Do not introduce `last_sync_date` for a new sync design.
 - Dryrun is asynchronous. `POST /functions/dryruns` returns an `id`; poll `GET /functions/dryruns/{id}` for `status`, `output`, `result`, or `error`. Do not call `/functions/dryruns/{id}/result`; it is sandbox-internal.
 - Deployment is asynchronous. `POST /functions/deployments` returns an `id`; poll `GET /functions/deployments/{id}` for `status`, `deployed`, `deployed_functions`, `output`, or `error`. Do not call `/functions/deployments/{id}/result`; it is sandbox-internal.
 - Treat `waiting` and `running` as nonterminal; stop polling only on `success` or `failed`.

@@ -47,15 +47,13 @@ Dryrun payload:
 ```json
 {
   "integration_id": "string",
-  "function_type": "action | sync",
+  "function_type": "sync",
   "code": "string",
   "connection_id": "string"
 }
 ```
 
-Add only the fields needed by the function:
-- Actions: `input`, `metadata`
-- Syncs: `metadata`, `checkpoint`
+Add only the fields needed by the sync: `metadata`, `checkpoint`.
 
 Deployment payload:
 
@@ -64,7 +62,7 @@ Deployment payload:
   "type": "function",
   "integration_id": "string",
   "function_name": "string",
-  "function_type": "action | sync",
+  "function_type": "sync",
   "code": "string"
 }
 ```
@@ -108,7 +106,7 @@ Terminal success includes `output` and may include `result`:
   "id": "00000000-0000-0000-0000-000000000000",
   "status": "success",
   "integration_id": "github",
-  "function_type": "action",
+  "function_type": "sync",
   "created_at": "2026-05-26T00:00:00.000Z",
   "updated_at": "2026-05-26T00:00:05.000Z",
   "duration_ms": 1234,
@@ -155,16 +153,16 @@ Terminal deployment success includes `deployed`, `deployed_functions`, and `outp
   "id": "00000000-0000-0000-0000-000000000000",
   "status": "success",
   "integration_id": "github",
-  "function_name": "list-repos",
-  "function_type": "action",
+  "function_name": "sync-repos",
+  "function_type": "sync",
   "created_at": "2026-05-26T00:00:00.000Z",
   "updated_at": "2026-05-26T00:00:05.000Z",
   "started_at": "2026-05-26T00:00:00.000Z",
   "completed_at": "2026-05-26T00:00:05.000Z",
   "duration_ms": 1234,
   "deployed": true,
-  "deployed_functions": [{ "name": "list-repos", "version": "1" }],
-  "output": "Successfully deployed the functions:\n- list-repos@1"
+  "deployed_functions": [{ "name": "sync-repos", "version": "1" }],
+  "output": "Successfully deployed the functions:\n- sync-repos@1"
 }
 ```
 
@@ -175,8 +173,8 @@ Terminal deployment failure includes `error`:
   "id": "00000000-0000-0000-0000-000000000000",
   "status": "failed",
   "integration_id": "github",
-  "function_name": "list-repos",
-  "function_type": "action",
+  "function_name": "sync-repos",
+  "function_type": "sync",
   "created_at": "2026-05-26T00:00:00.000Z",
   "updated_at": "2026-05-26T00:00:05.000Z",
   "error": {
@@ -199,28 +197,15 @@ curl -sS -X POST "$NANGO_SERVER_URL/functions/compile" \
     "code": "...TypeScript source..."
   }'
 
-# Dryrun an action
-curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
-  -H "Authorization: Bearer $NANGO_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "integration_id": "slack",
-    "function_type": "action",
-    "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "input": { "channel_id": "C123", "text": "Hello" }
-  }'
-
-# Dryrun a no-input action
+# Dryrun a sync
 curl -sS -X POST "$NANGO_SERVER_URL/functions/dryruns" \
   -H "Authorization: Bearer $NANGO_SECRET_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "integration_id": "github",
-    "function_type": "action",
+    "function_type": "sync",
     "code": "...TypeScript source...",
-    "connection_id": "conn-1",
-    "input": {}
+    "connection_id": "conn-1"
   }'
 
 # Dryrun a sync from a checkpoint
@@ -258,8 +243,8 @@ curl -sS -X POST "$NANGO_SERVER_URL/functions/deployments" \
   -d '{
     "type": "function",
     "integration_id": "github",
-    "function_name": "list-repos",
-    "function_type": "action",
+    "function_name": "sync-repos",
+    "function_type": "sync",
     "code": "...TypeScript source..."
   }'
 
